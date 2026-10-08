@@ -13,6 +13,38 @@
 <body>
 <div class="carregando" id="carregando" hidden></div>
 
+<!-- Aparece enquanto o sistema carrega. Se os arquivos não carregarem, vira um diagnóstico. -->
+<section class="login" id="tela-inicial">
+  <div style="max-width:560px;background:var(--surface);border-top:4px solid #1e4fa3;padding:26px 28px">
+    <h1 style="margin:0;font:700 30px/1.1 var(--cond)">Controle de Frota</h1>
+    <p id="diag-texto" style="color:var(--ink2);margin:8px 0 0">Carregando o sistema…</p>
+    <ul id="diag-lista" style="margin:12px 0 0;padding-left:20px;font-size:14px"></ul>
+  </div>
+</section>
+<script>
+  // Diagnóstico: se o app.js não iniciar em 6 segundos, mostra o motivo provável.
+  window.__frotaErros = [];
+  window.addEventListener("error", function (e) {
+    if (!e.message) return; // falha de download de arquivo: tratada pela verificação abaixo
+    window.__frotaErros.push((e.filename ? e.filename.split("/").pop() + ": " : "") + (e.message || "erro ao carregar"));
+  }, true);
+  setTimeout(async function () {
+    if (window.__frotaIniciado) return;
+    var arquivos = ["config.js", "estilo.css", "js/api.js", "js/regras.js", "js/app.js"], faltando = [];
+    for (var i = 0; i < arquivos.length; i++) {
+      try { var r = await fetch(arquivos[i], { cache: "no-store" }); if (!r.ok) faltando.push(arquivos[i]); }
+      catch (e) { faltando.push(arquivos[i]); }
+    }
+    var itens = [];
+    if (location.protocol === "file:") itens.push("O arquivo foi aberto direto do computador. Abra pelo endereço do GitHub Pages (https://...github.io/...).");
+    faltando.forEach(function (a) { itens.push("Arquivo não encontrado: <b>" + a + "</b>. Confira se ele está no repositório exatamente com este caminho (letras minúsculas, dentro da pasta js/ quando indicado)."); });
+    window.__frotaErros.forEach(function (m) { itens.push("Erro: <code>" + m.replace(/</g, "&lt;") + "</code>" + (/config/.test(m) || /Unexpected|Invalid|missing/i.test(m) ? " — revise o config.js: a URL precisa estar entre aspas retas e a linha terminar com ponto e vírgula." : "")); });
+    if (!itens.length) itens.push("Os arquivos existem, mas o sistema não iniciou. Abra o console do navegador (F12 > Console) e envie a mensagem em vermelho.");
+    document.getElementById("diag-texto").textContent = "O sistema não conseguiu iniciar. Verifique:";
+    document.getElementById("diag-lista").innerHTML = itens.map(function (t) { return "<li style='margin-bottom:6px'>" + t + "</li>"; }).join("");
+  }, 6000);
+</script>
+
 <!-- Login -->
 <section class="login" id="tela-login" hidden>
   <form id="form-login">

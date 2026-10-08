@@ -437,5 +437,7 @@ formU.onsubmit = async (e) => {
 };
 
 /* ------------------------------------------------------------------ início */
+window.__frotaIniciado = true;
+$("tela-inicial").hidden = true;
 if (sessao.obter()?.token) iniciar().catch((e) => { avisar(e.message, true); mostrarLogin(); });
 else mostrarLogin();
