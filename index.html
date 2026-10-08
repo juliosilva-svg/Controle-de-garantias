@@ -30,14 +30,14 @@
   }, true);
   setTimeout(async function () {
     if (window.__frotaIniciado) return;
-    var arquivos = ["config.js", "estilo.css", "js/api.js", "js/regras.js", "js/app.js"], faltando = [];
+    var arquivos = ["config.js", "estilo.css", "api.js", "regras.js", "app.js"], faltando = [];
     for (var i = 0; i < arquivos.length; i++) {
       try { var r = await fetch(arquivos[i], { cache: "no-store" }); if (!r.ok) faltando.push(arquivos[i]); }
       catch (e) { faltando.push(arquivos[i]); }
     }
     var itens = [];
     if (location.protocol === "file:") itens.push("O arquivo foi aberto direto do computador. Abra pelo endereço do GitHub Pages (https://...github.io/...).");
-    faltando.forEach(function (a) { itens.push("Arquivo não encontrado: <b>" + a + "</b>. Confira se ele está no repositório exatamente com este caminho (letras minúsculas, dentro da pasta js/ quando indicado)."); });
+    faltando.forEach(function (a) { itens.push("Arquivo não encontrado: <b>" + a + "</b>. Confira se ele está no repositório exatamente com este caminho (todos os arquivos ficam juntos na raiz, com letras minúsculas)."); });
     window.__frotaErros.forEach(function (m) { itens.push("Erro: <code>" + m.replace(/</g, "&lt;") + "</code>" + (/config/.test(m) || /Unexpected|Invalid|missing/i.test(m) ? " — revise o config.js: a URL precisa estar entre aspas retas e a linha terminar com ponto e vírgula." : "")); });
     if (!itens.length) itens.push("Os arquivos existem, mas o sistema não iniciou. Abra o console do navegador (F12 > Console) e envie a mensagem em vermelho.");
     document.getElementById("diag-texto").textContent = "O sistema não conseguiu iniciar. Verifique:";
@@ -211,6 +211,6 @@
   </form>
 </dialog>
 
-<script type="module" src="js/app.js"></script>
+<script type="module" src="app.js"></script>
 </body>
 </html>
