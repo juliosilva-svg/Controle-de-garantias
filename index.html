@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Controle de Frota — Garantias e Preventivas</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚌</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="estilo.css">
+</head>
+<body>
+<div class="carregando" id="carregando" hidden></div>
+
+<!-- Login -->
+<section class="login" id="tela-login" hidden>
+  <form id="form-login">
+    <h1>Controle de Frota</h1>
+    <p class="sub2">Garantias e manutenção preventiva</p>
+    <label class="campo"><span>E-mail</span><input type="email" name="email" required autocomplete="username"></label>
+    <label class="campo" style="margin-top:14px"><span>Senha</span><input type="password" name="senha" required autocomplete="current-password"></label>
+    <p class="erro-form" id="erro-login" role="alert" hidden></p>
+    <button class="btn prim" style="width:100%;margin-top:20px;padding:10px">Entrar</button>
+  </form>
+</section>
+
+<!-- Aplicação -->
+<div id="tela-app" hidden>
+  <header class="topo">
+    <div class="in">
+      <div class="marca">Controle de Frota</div>
+      <div class="sub">Garantias e preventivas</div>
+      <div class="dir">
+        <label>Filial <select id="filial"></select></label>
+        <div class="usuario" id="usuario"></div>
+        <button class="btn-topo" id="btn-senha">Alterar senha</button>
+        <button class="btn-topo" id="btn-sair">Sair</button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <div class="acoes">
+      <button class="btn prim" id="btn-novo">Cadastrar veículo</button>
+      <button class="btn" id="btn-usuarios" hidden>Usuários e acessos</button>
+      <button class="btn" id="btn-atualizar">Atualizar dados</button>
+      <span class="info" id="info-atualizacao"></span>
+    </div>
+    <section class="metricas" id="metricas" aria-label="Indicadores da frota"></section>
+    <p class="aviso" id="aviso" hidden></p>
+    <div class="filtros">
+      <div class="chips" id="chips" role="group" aria-label="Situação"></div>
+      <label class="busca"><span>Buscar por prefixo, placa ou modelo</span>
+        <input id="busca" type="search" placeholder="Ex.: F2550 ou TYX1J01" autocomplete="off">
+      </label>
+    </div>
+    <div class="quadro">
+      <div class="rolagem">
+        <table class="grade">
+          <thead><tr>
+            <th><button data-ordem="prefixo">Prefixo</button></th>
+            <th>Placa</th>
+            <th style="width:23%">Chassi</th>
+            <th style="width:21%">Carroceria</th>
+            <th><button data-ordem="preventiva">Preventiva</button></th>
+            <th class="dir-num"><button data-ordem="km">KM atual</button></th>
+            <th><button data-ordem="vencimento">Próximo vencimento</button></th>
+          </tr></thead>
+          <tbody id="linhas"></tbody>
+        </table>
+      </div>
+      <nav class="paginacao" aria-label="Paginação">
+        <span id="pag-info"></span>
+        <span><button id="pag-ant">Anterior</button><button id="pag-prox">Próxima</button></span>
+      </nav>
+    </div>
+  </main>
+</div>
+
+<!-- Ficha do veículo -->
+<div class="veu" id="veu"></div>
+<aside class="ficha" id="ficha" role="dialog" aria-modal="true" aria-label="Ficha do veículo" tabindex="-1">
+  <div class="barra-topo"><strong id="ficha-titulo">Ficha do veículo</strong><button id="fechar">Fechar</button></div>
+  <div class="corpo" id="ficha-corpo"></div>
+</aside>
+
+<!-- Formulário de veículo -->
+<dialog id="dlg-veiculo" class="largo">
+  <form id="form-veiculo" method="dialog">
+    <h2 id="titulo-veiculo">Cadastrar veículo</h2>
+    <input type="hidden" name="prefixo_original">
+    <div class="grade-form">
+      <label class="campo"><span>Prefixo</span><input name="prefixo" required maxlength="20" placeholder="F2900"></label>
+      <label class="campo"><span>Placa</span><input name="placa" required maxlength="8" placeholder="ABC1D23"></label>
+      <label class="campo inteiro"><span>Número do chassi (VIN)</span><input name="chassi" required minlength="17" maxlength="17" placeholder="17 caracteres, sem I, O ou Q"></label>
+      <label class="campo"><span>Fabricante do chassi</span><input name="fabricante" required list="lista-fabricantes" placeholder="Mercedes-Benz"></label>
+      <label class="campo"><span>Modelo do chassi</span><input name="modelo" required placeholder="OF-1721/59 Euro VI"></label>
+      <label class="campo"><span>Encarroçadora</span><input name="encarrocadora" list="lista-encarrocadoras" placeholder="Vazio para monobloco"></label>
+      <label class="campo"><span>Modelo da carroceria</span><input name="modelo_carroceria"></label>
+      <label class="campo"><span>Ano do chassi</span><input name="ano_fabricacao" type="number" required min="1980" max="2100"></label>
+      <label class="campo"><span>Filial</span><select name="filial_codigo" required></select></label>
+      <label class="campo"><span>Início da garantia</span><input name="data_inicio_garantia" type="date" required><small>Data de entrega do veículo</small></label>
+      <label class="campo"><span>KM no início da garantia</span><input name="km_inicio_garantia" type="number" min="0" value="0"></label>
+      <label class="campo" id="campo-km-atual"><span>KM atual</span><input name="km_atual" type="number" min="0" value="0"></label>
+      <label class="check inteiro"><input type="checkbox" name="data_confirmada" checked> A data de início da garantia está confirmada</label>
+    </div>
+    <p class="erro-form" role="alert" hidden></p>
+    <div class="rodape"><button type="button" class="btn" data-fechar>Cancelar</button><button class="btn prim" value="ok">Salvar</button></div>
+  </form>
+</dialog>
+<datalist id="lista-fabricantes"></datalist>
+<datalist id="lista-encarrocadoras"></datalist>
+
+<!-- Lançar KM -->
+<dialog id="dlg-km">
+  <form id="form-km" method="dialog">
+    <h2>Lançar KM manual</h2>
+    <input type="hidden" name="prefixo">
+    <div class="grade-form">
+      <label class="campo"><span>Odômetro (km)</span><input name="km" type="number" min="0" required></label>
+      <label class="campo"><span>Data e hora da leitura</span><input name="data_leitura" type="datetime-local" required></label>
+      <label class="check inteiro" id="campo-forcar" hidden><input type="checkbox" name="forcar"> Forçar correção (troca de painel/odômetro)</label>
+    </div>
+    <p class="erro-form" role="alert" hidden></p>
+    <div class="rodape"><button type="button" class="btn" data-fechar>Cancelar</button><button class="btn prim" value="ok">Lançar</button></div>
+  </form>
+</dialog>
+
+<!-- Registrar manutenção -->
+<dialog id="dlg-manut">
+  <form id="form-manut" method="dialog">
+    <h2>Registrar manutenção</h2>
+    <input type="hidden" name="prefixo">
+    <div class="grade-form">
+      <label class="campo inteiro"><span>Plano</span><select name="plano" required></select></label>
+      <label class="campo"><span>KM na execução</span><input name="km_execucao" type="number" min="0" required></label>
+      <label class="campo"><span>Data da execução</span><input name="data_execucao" type="date" required></label>
+      <label class="campo"><span>Ordem de serviço</span><input name="ordem_servico" maxlength="40"></label>
+      <label class="campo inteiro"><span>Observação</span><textarea name="observacao" rows="2"></textarea></label>
+    </div>
+    <p class="erro-form" role="alert" hidden></p>
+    <div class="rodape"><button type="button" class="btn" data-fechar>Cancelar</button><button class="btn prim" value="ok">Registrar</button></div>
+  </form>
+</dialog>
+
+<!-- Usuários -->
+<dialog id="dlg-usuarios" class="largo">
+  <div class="dlg">
+    <h2>Usuários e acessos</h2>
+    <p class="peq" style="font-size:14px;margin:-6px 0 12px">Administrador vê e altera todas as filiais. Usuário de filial vê e altera só a própria.</p>
+    <div class="rolagem"><table class="usuarios" style="width:100%;border-collapse:collapse;min-width:620px"><thead><tr><th>Nome</th><th>E-mail</th><th>Acesso</th><th>Situação</th><th></th></tr></thead><tbody id="lista-usuarios"></tbody></table></div>
+    <form id="form-usuario" style="padding:16px 0 0;border-top:1px solid var(--line);margin-top:16px">
+      <h2 style="font-size:20px" id="titulo-usuario">Novo usuário</h2>
+      <div class="grade-form">
+        <label class="campo"><span>Nome</span><input name="nome" required></label>
+        <label class="campo"><span>E-mail</span><input name="email" type="email" required></label>
+        <label class="campo"><span>Acesso</span><select name="perfil"><option value="FILIAL">Usuário de filial</option><option value="ADMIN">Administrador (todas as filiais)</option></select></label>
+        <label class="campo"><span>Filial</span><select name="filial_codigo"></select></label>
+        <label class="campo"><span>Senha</span><input name="senha" type="password" minlength="8" autocomplete="new-password"><small id="dica-senha">Mínimo de 8 caracteres</small></label>
+        <label class="check" style="align-self:end"><input type="checkbox" name="ativo" checked> Acesso ativo</label>
+      </div>
+      <p class="erro-form" role="alert" hidden></p>
+      <div class="rodape"><button type="button" class="btn" id="btn-novo-usuario">Limpar</button><button type="button" class="btn" data-fechar>Fechar</button><button class="btn prim">Salvar usuário</button></div>
+    </form>
+  </div>
+</dialog>
+
+<!-- Alterar senha -->
+<dialog id="dlg-senha">
+  <form id="form-senha" method="dialog">
+    <h2>Alterar minha senha</h2>
+    <div class="grade-form">
+      <label class="campo inteiro"><span>Senha atual</span><input name="senha_atual" type="password" required autocomplete="current-password"></label>
+      <label class="campo inteiro"><span>Nova senha</span><input name="nova_senha" type="password" required minlength="8" autocomplete="new-password"></label>
+    </div>
+    <p class="erro-form" role="alert" hidden></p>
+    <div class="rodape"><button type="button" class="btn" data-fechar>Cancelar</button><button class="btn prim" value="ok">Alterar</button></div>
+  </form>
+</dialog>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
