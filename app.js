@@ -47,9 +47,39 @@ const admin = () => est.usuario?.perfil === "ADMIN";
 /* ------------------------------------------------------------------ login / sessão */
 function mostrarLogin() {
   $("tela-app").hidden = true; $("tela-login").hidden = false;
+  $("form-login").hidden = false; $("form-primeiro").hidden = true;
   fecharFicha(); document.querySelectorAll("dialog[open]").forEach((d) => d.close());
   $("form-login").email.focus();
+  // sem administrador cadastrado: oferece a tela de primeiro acesso
+  chamar("situacao").then((s) => {
+    $("link-primeiro").hidden = s.tem_admin;
+    if (!s.tem_admin) mostrarPrimeiro();
+  }).catch((e) => { const er = $("erro-login"); er.textContent = e.message; er.hidden = false; });
 }
+function mostrarPrimeiro() {
+  $("form-login").hidden = true; $("form-primeiro").hidden = false;
+  $("form-primeiro").querySelector(".erro-form").hidden = true;
+  $("form-primeiro").codigo.focus();
+}
+$("abrir-primeiro").onclick = (e) => { e.preventDefault(); mostrarPrimeiro(); };
+$("voltar-login").onclick = (e) => { e.preventDefault(); $("form-primeiro").hidden = true; $("form-login").hidden = false; };
+$("form-primeiro").onsubmit = async (e) => {
+  e.preventDefault();
+  const f = e.target, erro = f.querySelector(".erro-form"), botao = f.querySelector("button");
+  erro.hidden = true;
+  if (f.senha.value !== f.senha2.value) { erro.textContent = "As senhas não conferem."; erro.hidden = false; return; }
+  // aceita colar o endereço inteiro da planilha: extrai só o ID
+  const codigo = (f.codigo.value.match(/\/d\/([a-zA-Z0-9_-]+)/) || [null, f.codigo.value.trim()])[1];
+  botao.disabled = true;
+  try {
+    const r = await comCarregamento(() => chamar("primeiroAcesso", { codigo, nome: f.nome.value, email: f.email.value, senha: f.senha.value }));
+    sessao.salvar(r);
+    f.reset();
+    await iniciar();
+    avisar("Administrador criado. Agora cadastre os usuários das filiais em Usuários e acessos.");
+  } catch (err) { erro.textContent = err.message; erro.hidden = false; }
+  finally { botao.disabled = false; }
+};
 window.addEventListener("frota:sair", () => { avisar("Sua sessão terminou. Entre novamente.", true); mostrarLogin(); });
 
 $("form-login").onsubmit = async (e) => {

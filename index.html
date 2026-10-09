@@ -54,6 +54,23 @@
     <label class="campo" style="margin-top:14px"><span>Senha</span><input type="password" name="senha" required autocomplete="current-password"></label>
     <p class="erro-form" id="erro-login" role="alert" hidden></p>
     <button class="btn prim" style="width:100%;margin-top:20px;padding:10px">Entrar</button>
+    <p id="link-primeiro" style="margin:18px 0 0;font-size:14px;text-align:center" hidden>
+      Sistema novo, sem administrador? <a href="#" id="abrir-primeiro" style="color:var(--link);font-weight:600">Primeiro acesso</a>
+    </p>
+  </form>
+  <form id="form-primeiro" hidden>
+    <h1>Primeiro acesso</h1>
+    <p class="sub2">Crie o administrador do sistema. Esta tela só funciona enquanto não existe nenhum administrador.</p>
+    <label class="campo"><span>Código de instalação</span>
+      <input name="codigo" required autocomplete="off" spellcheck="false">
+      <small>É o ID da planilha: no endereço dela, o trecho entre <b>/d/</b> e <b>/edit</b>.</small></label>
+    <label class="campo" style="margin-top:14px"><span>Seu nome</span><input name="nome" required autocomplete="name"></label>
+    <label class="campo" style="margin-top:14px"><span>E-mail de login</span><input type="email" name="email" required autocomplete="username"></label>
+    <label class="campo" style="margin-top:14px"><span>Senha</span><input type="password" name="senha" required minlength="8" autocomplete="new-password"><small>Mínimo de 8 caracteres</small></label>
+    <label class="campo" style="margin-top:14px"><span>Repita a senha</span><input type="password" name="senha2" required minlength="8" autocomplete="new-password"></label>
+    <p class="erro-form" role="alert" hidden></p>
+    <button class="btn prim" style="width:100%;margin-top:20px;padding:10px">Criar administrador e entrar</button>
+    <p style="margin:14px 0 0;font-size:14px;text-align:center"><a href="#" id="voltar-login" style="color:var(--link)">Voltar ao login</a></p>
   </form>
 </section>
 
