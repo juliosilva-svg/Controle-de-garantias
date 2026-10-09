@@ -141,17 +141,19 @@
     <input type="hidden" name="prefixo_original">
     <div class="grade-form">
       <label class="campo"><span>Prefixo</span><input name="prefixo" required maxlength="20" placeholder="F2900"></label>
-      <label class="campo"><span>Placa</span><input name="placa" required maxlength="8" placeholder="ABC1D23"></label>
+      <label class="campo"><span>Placa</span><input name="placa" maxlength="8" placeholder="ABC1D23"><small>Deixe em branco se ainda não emplacado</small></label>
       <label class="campo inteiro"><span>Número do chassi (VIN)</span><input name="chassi" required minlength="17" maxlength="17" placeholder="17 caracteres, sem I, O ou Q"></label>
       <label class="campo"><span>Fabricante do chassi</span><input name="fabricante" required list="lista-fabricantes" placeholder="Mercedes-Benz"></label>
       <label class="campo"><span>Modelo do chassi</span><input name="modelo" required placeholder="OF-1721/59 Euro VI"></label>
       <label class="campo"><span>Encarroçadora</span><input name="encarrocadora" list="lista-encarrocadoras" placeholder="Vazio para monobloco"></label>
       <label class="campo"><span>Modelo da carroceria</span><input name="modelo_carroceria"></label>
       <label class="campo"><span>Ano do chassi</span><input name="ano_fabricacao" type="number" required min="1980" max="2100"></label>
-      <label class="campo"><span>Filial</span><select name="filial_codigo" required></select></label>
+      <label class="campo"><span>Filial (garagem)</span><select name="filial_codigo" required></select></label>
       <label class="campo"><span>Início da garantia</span><input name="data_inicio_garantia" type="date" required><small>Data de entrega do veículo</small></label>
       <label class="campo"><span>KM no início da garantia</span><input name="km_inicio_garantia" type="number" min="0" value="0"></label>
       <label class="campo" id="campo-km-atual"><span>KM atual</span><input name="km_atual" type="number" min="0" value="0"></label>
+      <label class="campo inteiro"><span>Tipo de serviço (contrato)</span><input name="tipo_servico" placeholder="Ex.: COMPLEXO MINAS CENTRAIS"></label>
+      <div class="campo inteiro"><span>Planos de preventiva</span><div id="planos-veiculo" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:6px 14px"></div></div>
       <label class="check inteiro"><input type="checkbox" name="data_confirmada" checked> A data de início da garantia está confirmada</label>
     </div>
     <p class="erro-form" role="alert" hidden></p>

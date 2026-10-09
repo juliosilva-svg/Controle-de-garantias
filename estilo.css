@@ -216,3 +216,5 @@ dialog.largo { width: min(920px, calc(100% - 24px)); }
 .aviso-flutuante.erro { background: var(--red); color: #fff; }
 .acoes-ficha { display: flex; flex-wrap: wrap; gap: 8px; }
 .tela-vazia { padding: 60px 20px; text-align: center; color: var(--ink2); }
+.campo .check { font-weight: 400; justify-content: flex-start; }
+.campo .check input { width: auto; flex: none; }

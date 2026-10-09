@@ -33,9 +33,10 @@ function avisar(msg, erro = false) {
 }
 
 const ROT_G = { ATIVA: ["Vigente", "verde"], VENCE_60: ["Vence em até 60 dias", "amarelo"], VENCE_30: ["Vence em até 30 dias", "amarelo"], EXPIRADA: ["Expirada", "vermelho"] };
-const ROT_P = { EM_DIA: ["Em dia", "verde"], PROXIMA: ["Próxima", "amarelo"], NECESSARIA: ["Necessária", "vermelho"], VENCIDA: ["Vencida", "vermelho"] };
+const ROT_P = { EM_DIA: ["Em dia", "verde"], PROXIMA: ["Próxima", "amarelo"], NECESSARIA: ["Necessária", "vermelho"], VENCIDA: ["Vencida", "vermelho"], CONCLUIDO: ["Concluído", "neutro"] };
 const sinal = ([rot, tom]) => `<span class="sinal s-${tom}">${rot}</span>`;
-const placaHtml = (p, grande = false) => /^[A-Z]{3}\d{4}$/.test(p)
+const placaHtml = (p, grande = false) => !p ? `<span class="placa antiga ${grande ? "grande" : ""}" title="Placa não informada"><span class="txt" style="letter-spacing:0;font-size:${grande ? 16 : 13}px">sem placa</span></span>`
+  : /^[A-Z]{3}\d{4}$/.test(p)
   ? `<span class="placa antiga ${grande ? "grande" : ""}" title="Placa no padrão antigo"><span class="txt">${p.slice(0, 3)}-${p.slice(3)}</span></span>`
   : `<span class="placa ${grande ? "grande" : ""}"><span class="faixa" aria-hidden="true">BRASIL</span><span class="txt">${esc(p)}</span></span>`;
 
@@ -131,7 +132,7 @@ const FILTROS = {
   vigente: ["Com garantia vigente", (v) => v.vigentes.length > 0],
   preventiva: ["Preventiva pendente", (v) => ["VENCIDA", "NECESSARIA"].includes(v.sPrev)],
 };
-const PESO_P = { VENCIDA: 0, NECESSARIA: 1, PROXIMA: 2, EM_DIA: 3 };
+const PESO_P = { VENCIDA: 0, NECESSARIA: 1, PROXIMA: 2, EM_DIA: 3, CONCLUIDO: 4 };
 const ORDENS = {
   prefixo: (a, b) => a.prefixo.localeCompare(b.prefixo, "pt-BR", { numeric: true }),
   km: (a, b) => b.km_atual - a.km_atual,
@@ -175,7 +176,7 @@ function render() {
 
   const termo = est.busca.toUpperCase().replace(/[^A-Z0-9]/g, "");
   const lista = daFilial.filter(FILTROS[est.filtro][1])
-    .filter((v) => !termo || `${v.prefixo}${v.placa}${v.modelo}${v.modelo_carroceria ?? ""}`.toUpperCase().replace(/[^A-Z0-9]/g, "").includes(termo))
+    .filter((v) => !termo || `${v.prefixo}${v.placa}${v.modelo}${v.modelo_carroceria ?? ""}${v.tipo_servico ?? ""}`.toUpperCase().replace(/[^A-Z0-9]/g, "").includes(termo))
     .sort(ORDENS[est.ordem]);
   document.querySelectorAll("[data-ordem]").forEach((b) => b.setAttribute("aria-current", b.dataset.ordem === est.ordem));
   const paginas = Math.max(1, Math.ceil(lista.length / POR_PAGINA));
@@ -186,11 +187,11 @@ function render() {
     : `<div class="mod"><b>${esc(fab)}</b> <i>${esc(mod)}</i></div>${s ? sinal(ROT_G[s]) : `<span class="peq">Sem regra de garantia</span>`}`;
   $("linhas").innerHTML = vis.length ? vis.map((v) => `
     <tr data-p="${esc(v.prefixo)}">
-      <td><button class="prefixo">${esc(v.prefixo)}</button><div class="peq">${esc(v.filial_nome)}</div></td>
+      <td><button class="prefixo">${esc(v.prefixo)}</button><div class="peq">${esc(v.filial_nome)}</div>${v.tipo_servico ? `<div class="peq" style="font-size:11px;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(v.tipo_servico)}">${esc(v.tipo_servico)}</div>` : ""}</td>
       <td>${placaHtml(v.placa)}</td>
       <td>${col(v.sChassi, v.fabricante, `${v.modelo} ${v.ano_fabricacao}`)}</td>
       <td>${col(v.sCarroc, v.encarrocadora, v.modelo_carroceria ?? "")}</td>
-      <td>${v.sPrev ? `${sinal(ROT_P[v.sPrev])}<div class="peq num" style="white-space:nowrap">${v.prevCritica.rest < 0 ? `${fmtKm(-v.prevCritica.rest)} além` : `faltam ${fmtKm(v.prevCritica.rest)}`}</div>` : `<span class="peq">Sem plano</span>`}</td>
+      <td>${v.sPrev && v.prevCritica ? `${sinal(ROT_P[v.sPrev])}<div class="peq num" style="white-space:nowrap">${v.prevCritica.rest < 0 ? `${fmtKm(-v.prevCritica.rest)} além` : `faltam ${fmtKm(v.prevCritica.rest)}`}</div>` : `<span class="peq">Sem plano</span>`}</td>
       <td class="dir-num num">${fmtKm(v.km_atual)}</td>
       <td style="font-size:14px">${v.critica ? `<div style="font-weight:500">${esc(v.critica.componente)}</div><div class="peq" style="font-size:13px">${prazo(v.critica.dias)}${v.critica.motivo === "KM" ? " pela KM" : ""}${v.data_confirmada ? "" : " (estimado)"}</div>` : `<span class="peq" style="font-size:14px">Nenhuma garantia vigente</span>`}</td>
     </tr>`).join("") : `<tr><td colspan="7" class="vazio">${todos.length ? "Nenhum veículo com esses filtros. Limpe a busca ou escolha outra situação." : "Nenhum veículo cadastrado ainda. Use Cadastrar veículo."}</td></tr>`;
@@ -222,6 +223,10 @@ function itemGarantia(g, v) {
 }
 function itemPreventiva(p, v) {
   const [rot, tom] = ROT_P[p.status];
+  if (p.status === "CONCLUIDO") {
+    return `<article class="item"><header><h4>${esc(p.nome)}</h4>${sinal([rot, tom])}</header>
+      <p class="nota" style="font-size:14px">Realizada${p.ultima != null ? ` com ${fmtKm(p.ultima)}` : ""}. Não há próxima execução prevista neste plano.</p></article>`;
+  }
   return `<article class="item"><header><h4>${esc(p.nome)}</h4>${sinal([rot, tom])}</header>
     <p style="margin:4px 0 8px;font-size:14px">Próxima em <b class="num" style="font-weight:500">${fmtKm(p.proxima)}</b>, ${p.rest >= 0 ? `faltam ${fmtKm(p.rest)}` : `${fmtKm(-p.rest)} além do previsto`}.</p>
     ${barra((v.km_atual - p.base) / p.intervalo_km, tom, p.ultima != null ? `Última: ${nf.format(p.ultima)}` : `Base: ${nf.format(p.base)}`, nf.format(v.km_atual), nf.format(p.proxima), `Intervalo consumido: ${p.nome}`)}
@@ -288,7 +293,8 @@ async function abrirFicha(prefixo, filtroHist = "todas", detalhe = null) {
           <div><dt>Chassi</dt><dd>${esc(v.fabricante)} ${esc(v.modelo)}</dd></div>
           <div><dt>Carroceria</dt><dd>${v.encarrocadora ? `${esc(v.encarrocadora)} ${esc(v.modelo_carroceria ?? "")}` : "Monobloco"}</dd></div>
           <div><dt>Ano do chassi</dt><dd class="num">${v.ano_fabricacao ?? "—"}</dd></div>
-          <div><dt>Filial</dt><dd>${esc(v.filial_nome)}</dd></div>
+          <div><dt>Filial (garagem)</dt><dd>${esc(v.filial_nome)}</dd></div>
+          ${v.tipo_servico ? `<div class="largo"><dt>Tipo de serviço</dt><dd>${esc(v.tipo_servico)}</dd></div>` : ""}
           <div class="largo"><dt>Número do chassi (VIN)</dt><dd style="letter-spacing:.04em">${esc(v.chassi)}</dd></div>
           <div class="largo"><dt>Início da garantia</dt><dd>${fmtData(inicio)} com ${fmtKm(v.km_inicio_garantia)}${v.data_confirmada ? "" : `<span class="etiqueta">data estimada</span>`}</dd></div>
         </dl>
@@ -308,8 +314,8 @@ async function abrirFicha(prefixo, filtroHist = "todas", detalhe = null) {
     <div class="duas">
       <div class="pilha">${grupos.length ? grupos.map(([t, l]) => `<section class="cartao"><h3>${esc(t)}</h3><div class="cont">${l.map((g) => itemGarantia(g, v)).join("")}</div></section>`).join("")
         : `<section class="cartao"><h3>Garantias</h3><div class="cont"><p class="nota" style="font-size:14px;padding:12px 0">Nenhuma regra na aba RegrasGarantia para ${esc(v.fabricante)}${v.encarrocadora ? ` ou ${esc(v.encarrocadora)}` : ""}.</p></div></section>`}</div>
-      <section class="cartao"><h3>Manutenção preventiva</h3><div class="cont">${v.prev.map((p) => itemPreventiva(p, v)).join("") || `<p class="nota" style="font-size:14px;padding:12px 0">Nenhum plano se aplica.</p>`}
-        ${detalhe.manutencoes.length ? `<p class="nota" style="margin:10px 0 4px;font-size:13px"><b>Últimas revisões registradas:</b> ${detalhe.manutencoes.slice(0, 5).map((m) => `${esc(m.plano)} com ${fmtKm(m.km_execucao)} em ${fmtData(paraData(m.data_execucao))}${m.ordem_servico ? ` (OS ${esc(m.ordem_servico)})` : ""}`).join("; ")}.</p>` : ""}
+      <section class="cartao"><h3>Manutenção preventiva</h3><div class="cont">${v.prev.map((p) => itemPreventiva(p, v)).join("") || `<p class="nota" style="font-size:14px;padding:12px 0">Nenhum plano de preventiva atribuído. Use Editar dados para escolher os planos deste veículo.</p>`}
+        ${detalhe.manutencoes.length ? `<p class="nota" style="margin:10px 0 4px;font-size:13px"><b>Últimas revisões registradas:</b> ${detalhe.manutencoes.slice(0, 5).map((m) => `${esc(m.plano)} com ${fmtKm(m.km_execucao)}${m.data_execucao ? ` em ${fmtData(paraData(m.data_execucao))}` : ""}${m.ordem_servico ? ` (OS ${esc(m.ordem_servico)})` : ""}`).join("; ")}.</p>` : ""}
       </div></section>
     </div>
     <section class="cartao"><h3>Histórico de KM <small>Linhas em âmbar são lançamentos manuais</small></h3>
@@ -368,12 +374,15 @@ function abrirVeiculo(v = null) {
   f.filial_codigo.value = v?.filial_codigo ?? est.filial ?? est.usuario.filial_codigo ?? "";
   if (!f.filial_codigo.value && est.dados.filiais[0]) f.filial_codigo.value = est.dados.filiais[0].codigo;
   if (v) {
-    for (const c of ["prefixo", "placa", "chassi", "fabricante", "modelo", "encarrocadora", "modelo_carroceria", "ano_fabricacao", "data_inicio_garantia", "km_inicio_garantia"]) f[c].value = v[c] ?? "";
+    for (const c of ["prefixo", "placa", "chassi", "fabricante", "modelo", "encarrocadora", "modelo_carroceria", "ano_fabricacao", "data_inicio_garantia", "km_inicio_garantia", "tipo_servico"]) f[c].value = v[c] ?? "";
     f.data_confirmada.checked = v.data_confirmada;
   } else {
     f.ano_fabricacao.value = new Date().getFullYear();
     f.data_inicio_garantia.value = isoLocal(new Date()).slice(0, 10);
   }
+  const marcados = new Set(v?.planos ?? []);
+  $("planos-veiculo").innerHTML = est.dados.planos.map((p, i) => `<label class="check"><input type="checkbox" name="plano_${i}" value="${esc(p.nome)}" ${marcados.has(p.nome) ? "checked" : ""}> ${esc(p.nome)}</label>`).join("")
+    || `<span class="peq">Nenhum plano cadastrado na aba Planos.</span>`;
   $("dlg-veiculo").showModal();
 }
 $("btn-novo").onclick = () => abrirVeiculo();
@@ -382,6 +391,7 @@ ligarFormulario($("form-veiculo"), "salvarVeiculo", (f) => ({
   fabricante: f.fabricante.value, modelo: f.modelo.value, encarrocadora: f.encarrocadora.value, modelo_carroceria: f.modelo_carroceria.value,
   ano_fabricacao: Number(f.ano_fabricacao.value), filial_codigo: f.filial_codigo.value, data_inicio_garantia: f.data_inicio_garantia.value,
   km_inicio_garantia: Number(f.km_inicio_garantia.value || 0), km_atual: Number(f.km_atual.value || 0), data_confirmada: f.data_confirmada.checked,
+  tipo_servico: f.tipo_servico.value, planos: [...f.querySelectorAll("#planos-veiculo input:checked")].map((c) => c.value),
 }), (r) => reabrir(r.prefixo, "Veículo salvo na planilha."));
 
 // KM
@@ -403,7 +413,9 @@ function abrirManut(v) {
   const f = $("form-manut");
   f.reset(); f.querySelector(".erro-form").hidden = true;
   f.prefixo.value = v.prefixo;
-  f.plano.innerHTML = v.prev.map((p) => `<option value="${esc(p.nome)}">${esc(p.nome)}</option>`).join("");
+  // planos do veículo primeiro; sem planos atribuídos, oferece todos (o escolhido passa a ser do veículo)
+  const opcoes = v.prev.length ? v.prev : est.dados.planos;
+  f.plano.innerHTML = opcoes.map((p) => `<option value="${esc(p.nome)}">${esc(p.nome)}</option>`).join("");
   const critico = v.prevCritica?.nome; if (critico) f.plano.value = critico;
   f.km_execucao.value = v.km_atual;
   f.data_execucao.value = isoLocal(new Date()).slice(0, 10);

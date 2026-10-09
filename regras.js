@@ -38,18 +38,31 @@ export function garantiasDoVeiculo(v, regras, h = hoje()) {
   return lista;
 }
 
+/**
+ * Planos do veículo: os listados na coluna "planos" da aba Veiculos; se a lista estiver vazia,
+ * os planos marcados como automáticos (filtrados por fabricante).
+ * Plano com km_final (ex.: 1ª troca de óleo do diferencial) fica CONCLUIDO depois da última execução prevista.
+ */
+export function planosAplicaveis(v, planos) {
+  const lista = v.planos?.length
+    ? v.planos.map((n) => planos.find((p) => igual(p.nome, n))).filter(Boolean)
+    : planos.filter((p) => p.automatico && (!p.fabricante || igual(p.fabricante, v.fabricante)));
+  return lista.filter((p) => p.intervalo_km > 0);
+}
+
 export function preventivasDoVeiculo(v, planos) {
-  return planos.filter((p) => p.intervalo_km > 0 && (!p.fabricante || igual(p.fabricante, v.fabricante))).map((p) => {
+  return planosAplicaveis(v, planos).map((p) => {
     const ultima = v.ultimas_revisoes?.[p.nome] ?? null;
     const base = ultima ?? v.km_inicio_garantia;
     const proxima = base + p.intervalo_km, rest = proxima - v.km_atual;
-    const status = rest < -p.tolerancia_km ? "VENCIDA" : rest <= 0 ? "NECESSARIA" : rest <= p.antecedencia_km ? "PROXIMA" : "EM_DIA";
+    let status = rest < -p.tolerancia_km ? "VENCIDA" : rest <= 0 ? "NECESSARIA" : rest <= p.antecedencia_km ? "PROXIMA" : "EM_DIA";
+    if (p.km_final && proxima > p.km_final) status = "CONCLUIDO";
     return { ...p, ultima, base, proxima, rest, status };
   });
 }
 
 const PRIO_G = ["VENCE_30", "VENCE_60", "ATIVA", "EXPIRADA"];
-const PRIO_P = ["VENCIDA", "NECESSARIA", "PROXIMA", "EM_DIA"];
+const PRIO_P = ["VENCIDA", "NECESSARIA", "PROXIMA", "EM_DIA", "CONCLUIDO"];
 const resumo = (l, prio) => prio.find((s) => l.some((x) => x.status === s)) ?? null;
 
 /** Acrescenta ao veículo os campos calculados usados pelo painel e pela ficha. */
@@ -63,6 +76,6 @@ export function avaliar(v, regras, planos) {
     sCarroc: resumo(garantias.filter((g) => g.origem === "CARROCERIA"), PRIO_G),
     sPrev: resumo(prev, PRIO_P),
     critica: vigentes.slice().sort((a, b) => (a.dias ?? 1e9) - (b.dias ?? 1e9))[0] ?? null,
-    prevCritica: prev.slice().sort((a, b) => a.rest - b.rest)[0] ?? null,
+    prevCritica: prev.filter((p) => p.status !== "CONCLUIDO").sort((a, b) => a.rest - b.rest)[0] ?? null,
   });
 }
