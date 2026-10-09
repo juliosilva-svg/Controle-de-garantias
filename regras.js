@@ -19,11 +19,27 @@ function avaliarGarantia(g, km, media, h) {
            fimEstimado: new Date(h.getTime() + dias * DIA) };
 }
 
-export function garantiasDoVeiculo(v, regras, h = hoje()) {
+export const PLANO_CRITERIO = "Revisão de garantia (fabricante)";
+export const normalizarModelo = (m) => (m ?? "").toUpperCase().replace(/\s+/g, " ").trim();
+
+/** Critério de garantia pelo tipo de chassi (aba Criterios): o modelo do veículo está entre as variações agrupadas. */
+export function criterioDoVeiculo(v, criterios = []) {
+  const m = normalizarModelo(v.modelo);
+  return criterios.find((c) => c.variacoes.includes(m)) ?? null;
+}
+
+export function garantiasDoVeiculo(v, regras, h = hoje(), criterio = null) {
   const inicio = paraData(v.data_inicio_garantia);
   const lista = [];
+  if (criterio && inicio) {
+    // garantia de fábrica do chassi: tempo máximo a partir da fabricação e, se houver, KM limite
+    const g = { origem: "CHASSI", fabricante: v.fabricante, componente: `Garantia de fábrica — ${criterio.tipo_chassi}`, inicio,
+      kmInicio: v.km_inicio_garantia, fim: fimDoPrazo(inicio, Math.round(criterio.garantia_anos * 12)),
+      kmLimite: criterio.km_limite ? v.km_inicio_garantia + criterio.km_limite : null, criterio: true };
+    lista.push(Object.assign(g, avaliarGarantia(g, v.km_atual, v.media_km_dia, h)));
+  }
   for (const [origem, fab, modelo] of [["CHASSI", v.fabricante, v.modelo], ["CARROCERIA", v.encarrocadora, v.modelo_carroceria]]) {
-    if (!fab || !inicio) continue;
+    if (!fab || !inicio || (origem === "CHASSI" && criterio)) continue; // com critério, as regras genéricas de chassi não se aplicam
     const porComp = new Map(); // regra específica do modelo prevalece sobre a genérica
     regras.filter((r) => igual(r.fabricante, fab) && (!r.modelo || igual(r.modelo, modelo)))
       .sort((a, b) => (a.modelo ? 1 : 0) - (b.modelo ? 1 : 0))
@@ -50,32 +66,45 @@ export function planosAplicaveis(v, planos) {
   return lista.filter((p) => p.intervalo_km > 0);
 }
 
-export function preventivasDoVeiculo(v, planos) {
-  return planosAplicaveis(v, planos).map((p) => {
-    const ultima = v.ultimas_revisoes?.[p.nome] ?? null;
+export function preventivasDoVeiculo(v, planos, criterio = null, garantiaChassi = null) {
+  let lista = planosAplicaveis(v, planos);
+  if (criterio?.plano_km) {
+    // o intervalo do fabricante substitui os planos "Revisão de garantia N km"; vale a última revisão de garantia feita
+    lista = lista.filter((p) => !/^revis[aã]o de garantia/i.test(p.nome));
+    const km = criterio.plano_km;
+    lista.unshift({ nome: PLANO_CRITERIO, intervalo_km: km, tolerancia_km: Math.round(km * 0.05), antecedencia_km: Math.round(km * 0.1),
+      criterio: true, foraGarantia: garantiaChassi?.status === "EXPIRADA" });
+  }
+  const ultimaGarantia = Math.max(-1, ...Object.entries(v.ultimas_revisoes ?? {})
+    .filter(([n]) => /^revis[aã]o de garantia/i.test(n)).map(([, k]) => k));
+  return lista.map((p) => {
+    const ultima = p.criterio ? (ultimaGarantia >= 0 ? ultimaGarantia : null) : v.ultimas_revisoes?.[p.nome] ?? null;
     const base = ultima ?? v.km_inicio_garantia;
     const proxima = base + p.intervalo_km, rest = proxima - v.km_atual;
     let status = rest < -p.tolerancia_km ? "VENCIDA" : rest <= 0 ? "NECESSARIA" : rest <= p.antecedencia_km ? "PROXIMA" : "EM_DIA";
     if (p.km_final && proxima > p.km_final) status = "CONCLUIDO";
+    if (p.foraGarantia) status = "FORA_GARANTIA"; // revisão de garantia deixa de ser exigida
     return { ...p, ultima, base, proxima, rest, status };
   });
 }
 
 const PRIO_G = ["VENCE_30", "VENCE_60", "ATIVA", "EXPIRADA"];
-const PRIO_P = ["VENCIDA", "NECESSARIA", "PROXIMA", "EM_DIA", "CONCLUIDO"];
+const PRIO_P = ["VENCIDA", "NECESSARIA", "PROXIMA", "EM_DIA", "CONCLUIDO", "FORA_GARANTIA"];
 const resumo = (l, prio) => prio.find((s) => l.some((x) => x.status === s)) ?? null;
 
 /** Acrescenta ao veículo os campos calculados usados pelo painel e pela ficha. */
-export function avaliar(v, regras, planos) {
-  const garantias = garantiasDoVeiculo(v, regras);
-  const prev = preventivasDoVeiculo(v, planos);
+export function avaliar(v, regras, planos, criterios = []) {
+  const criterio = criterioDoVeiculo(v, criterios);
+  const garantias = garantiasDoVeiculo(v, regras, hoje(), criterio);
+  const prev = preventivasDoVeiculo(v, planos, criterio, garantias.find((g) => g.criterio));
   const vigentes = garantias.filter((g) => g.status !== "EXPIRADA");
   return Object.assign(v, {
-    garantias, prev, vigentes,
+    garantias, prev, vigentes, criterio,
+    emGarantia: criterio ? garantias.find((g) => g.criterio).status !== "EXPIRADA" : null,
     sChassi: resumo(garantias.filter((g) => g.origem === "CHASSI"), PRIO_G),
     sCarroc: resumo(garantias.filter((g) => g.origem === "CARROCERIA"), PRIO_G),
     sPrev: resumo(prev, PRIO_P),
     critica: vigentes.slice().sort((a, b) => (a.dias ?? 1e9) - (b.dias ?? 1e9))[0] ?? null,
-    prevCritica: prev.filter((p) => p.status !== "CONCLUIDO").sort((a, b) => a.rest - b.rest)[0] ?? null,
+    prevCritica: prev.filter((p) => !["CONCLUIDO", "FORA_GARANTIA"].includes(p.status)).sort((a, b) => a.rest - b.rest)[0] ?? null,
   });
 }

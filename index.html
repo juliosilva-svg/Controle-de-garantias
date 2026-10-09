@@ -93,6 +93,7 @@
     <div class="acoes">
       <button class="btn prim" id="btn-novo">Cadastrar veículo</button>
       <button class="btn" id="btn-usuarios" hidden>Usuários e acessos</button>
+      <button class="btn" id="btn-criterios" hidden>Critérios de garantia</button>
       <button class="btn" id="btn-atualizar">Atualizar dados</button>
       <span class="info" id="info-atualizacao"></span>
     </div>
@@ -213,6 +214,32 @@
       </div>
       <p class="erro-form" role="alert" hidden></p>
       <div class="rodape"><button type="button" class="btn" id="btn-novo-usuario">Limpar</button><button type="button" class="btn" data-fechar>Fechar</button><button class="btn prim">Salvar usuário</button></div>
+    </form>
+  </div>
+</dialog>
+
+<!-- Critérios de garantia por tipo de chassi -->
+<dialog id="dlg-criterios" class="largo" style="width:min(1180px,calc(100% - 24px))">
+  <div class="dlg">
+    <h2>Critérios de garantia por tipo de chassi</h2>
+    <p class="peq" style="font-size:14px;margin:-6px 0 12px">A garantia conta a partir da data de início (fabricação) de cada veículo. Plano de KM é o intervalo das revisões de garantia definido pelo fabricante. Com KM limite, a garantia termina no que ocorrer primeiro.</p>
+    <div class="rolagem"><table class="usuarios" style="width:100%;border-collapse:collapse;min-width:900px">
+      <thead><tr><th>Tipo de chassi</th><th>Variações agrupadas no cadastro</th><th class="dir-num">Veículos</th><th class="dir-num">Plano de KM</th><th class="dir-num">Tempo de garantia</th><th class="dir-num">KM limite</th><th></th></tr></thead>
+      <tbody id="lista-criterios"></tbody></table></div>
+    <p class="nota" id="modelos-sem-criterio" style="font-size:13px;margin:10px 0 0"></p>
+    <form id="form-criterio" style="padding:16px 0 0;border-top:1px solid var(--line);margin-top:16px">
+      <h2 style="font-size:20px" id="titulo-criterio">Novo critério</h2>
+      <input type="hidden" name="tipo_original">
+      <div class="grade-form" style="grid-template-columns:repeat(4,minmax(0,1fr))">
+        <label class="campo"><span>Tipo de chassi</span><input name="tipo_chassi" required placeholder="Ex.: OF-1721/59"></label>
+        <label class="campo"><span>Plano de KM</span><input name="plano_km" type="number" min="1000" step="1000" required placeholder="30000"></label>
+        <label class="campo"><span>Tempo de garantia (anos)</span><input name="garantia_anos" type="number" min="0.5" max="30" step="0.5" required placeholder="2"></label>
+        <label class="campo"><span>KM limite</span><input name="km_limite" type="number" min="1000" step="1000" placeholder="Opcional"></label>
+        <div class="campo inteiro"><span>Modelos do cadastro que pertencem a este tipo</span>
+          <div id="variacoes-criterio" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:6px 14px;max-height:220px;overflow:auto;border:1px solid var(--line-soft);padding:8px"></div></div>
+      </div>
+      <p class="erro-form" role="alert" hidden></p>
+      <div class="rodape"><button type="button" class="btn" id="btn-novo-criterio">Limpar</button><button type="button" class="btn" data-fechar>Fechar</button><button class="btn prim">Salvar critério</button></div>
     </form>
   </div>
 </dialog>

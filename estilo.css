@@ -218,3 +218,4 @@ dialog.largo { width: min(920px, calc(100% - 24px)); }
 .tela-vazia { padding: 60px 20px; text-align: center; color: var(--ink2); }
 .campo .check { font-weight: 400; justify-content: flex-start; }
 .campo .check input { width: auto; flex: none; }
+.usuarios td.dir-num, .usuarios th.dir-num { text-align: right; }
