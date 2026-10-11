@@ -23,9 +23,11 @@ export const PLANO_CRITERIO = "Revisão de garantia (fabricante)";
 export const normalizarModelo = (m) => (m ?? "").toUpperCase().replace(/\s+/g, " ").trim();
 
 /** Critério de garantia pelo tipo de chassi (aba Criterios): o modelo do veículo está entre as variações agrupadas. */
+// compara sem espaços e hífens: "SPRINTER 417 CDI" e "SPRINTER 417-CDI" são o mesmo modelo
+export const chaveModelo = (m) => normalizarModelo(m).replace(/[\s-]/g, "");
 export function criterioDoVeiculo(v, criterios = []) {
-  const m = normalizarModelo(v.modelo);
-  return criterios.find((c) => c.variacoes.includes(m)) ?? null;
+  const m = chaveModelo(v.modelo);
+  return criterios.find((c) => c.variacoes.some((x) => chaveModelo(x) === m)) ?? null;
 }
 
 export function garantiasDoVeiculo(v, regras, h = hoje(), criterio = null) {
@@ -69,10 +71,11 @@ export function planosAplicaveis(v, planos) {
 
 export function preventivasDoVeiculo(v, planos, criterio = null, garantiaChassi = null) {
   let lista = planosAplicaveis(v, planos);
-  if (criterio?.plano_km) {
-    // o intervalo do fabricante substitui os planos "Revisão de garantia N km"; vale a última revisão de garantia feita
+  // intervalo da revisão de garantia: sempre o do critério do tipo de chassi
+  const km = criterio?.plano_km;
+  if (km) {
+    // substitui os planos "Revisão de garantia N km"; vale a última revisão de garantia feita
     lista = lista.filter((p) => !/^revis[aã]o de garantia/i.test(p.nome));
-    const km = criterio.plano_km;
     lista.unshift({ nome: PLANO_CRITERIO, intervalo_km: km, tolerancia_km: Math.round(km * 0.05), antecedencia_km: Math.round(km * 0.1),
       criterio: true, foraGarantia: garantiaChassi?.status === "EXPIRADA" });
   }

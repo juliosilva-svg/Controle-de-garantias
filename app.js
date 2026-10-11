@@ -1,5 +1,5 @@
 import { chamar, sessao } from "./api.js";
-import { avaliar, DIA, hoje, normalizarModelo, paraData } from "./regras.js";
+import { avaliar, chaveModelo, DIA, hoje, normalizarModelo, paraData } from "./regras.js";
 
 /* ------------------------------------------------------------------ utilidades */
 const $ = (id) => document.getElementById(id);
@@ -628,8 +628,8 @@ function listarCriterios() {
     <td class="dir-num num">${c.km_limite ? nf.format(c.km_limite) : "—"}</td>
     <td style="white-space:nowrap;text-align:right"><button class="btn" data-ed="${esc(c.tipo_chassi)}">Editar</button> <button class="btn" style="color:var(--red)" data-ex="${esc(c.tipo_chassi)}">Excluir</button></td></tr>`).join("")
     : `<tr><td colspan="7" class="vazio">Nenhum critério cadastrado.</td></tr>`;
-  const cobertos = new Set(crit.flatMap((c) => c.variacoes));
-  const soltos = modelosDaFrota().filter(([m]) => !cobertos.has(m));
+  const cobertos = new Set(crit.flatMap((c) => c.variacoes.map(chaveModelo)));
+  const soltos = modelosDaFrota().filter(([m]) => !cobertos.has(chaveModelo(m)));
   $("modelos-sem-criterio").innerHTML = soltos.length
     ? `<b>Modelos da frota sem critério:</b> ${soltos.map(([m, n]) => `${esc(m)} (${n})`).join(", ")}.`
     : "Todos os modelos da frota têm critério.";
