@@ -38,7 +38,8 @@ export function garantiasDoVeiculo(v, regras, h = hoje(), criterio = null) {
       kmLimite: criterio.km_limite ? v.km_inicio_garantia + criterio.km_limite : null, criterio: true };
     lista.push(Object.assign(g, avaliarGarantia(g, v.km_atual, v.media_km_dia, h)));
   }
-  for (const [origem, fab, modelo] of [["CHASSI", v.fabricante, v.modelo], ["CARROCERIA", v.encarrocadora, v.modelo_carroceria]]) {
+  // a carroceria segue a garantia do chassi: só o chassi é avaliado
+  for (const [origem, fab, modelo] of [["CHASSI", v.fabricante, v.modelo]]) {
     if (!fab || !inicio || (origem === "CHASSI" && criterio)) continue; // com critério, as regras genéricas de chassi não se aplicam
     const porComp = new Map(); // regra específica do modelo prevalece sobre a genérica
     regras.filter((r) => igual(r.fabricante, fab) && (!r.modelo || igual(r.modelo, modelo)))
@@ -80,8 +81,15 @@ export function preventivasDoVeiculo(v, planos, criterio = null, garantiaChassi 
   return lista.map((p) => {
     const ultima = p.criterio ? (ultimaGarantia >= 0 ? ultimaGarantia : null) : v.ultimas_revisoes?.[p.nome] ?? null;
     const base = ultima ?? v.km_inicio_garantia;
-    const proxima = base + p.intervalo_km, rest = proxima - v.km_atual;
+    let proxima = base + p.intervalo_km, rest = proxima - v.km_atual;
     let status = rest < -p.tolerancia_km ? "VENCIDA" : rest <= 0 ? "NECESSARIA" : rest <= p.antecedencia_km ? "PROXIMA" : "EM_DIA";
+    // Sem nenhuma revisão registrada e já com mais de dois ciclos rodados: o atraso calculado desde o KM zero não é real.
+    // Estima a próxima no ciclo do plano e sinaliza que falta o registro da última revisão.
+    if (ultima == null && v.km_atual - base > 2 * p.intervalo_km) {
+      proxima = base + (Math.floor((v.km_atual - base) / p.intervalo_km) + 1) * p.intervalo_km;
+      rest = proxima - v.km_atual;
+      status = "SEM_REGISTRO";
+    }
     if (p.km_final && proxima > p.km_final) status = "CONCLUIDO";
     if (p.foraGarantia) status = "FORA_GARANTIA"; // revisão de garantia deixa de ser exigida
     return { ...p, ultima, base, proxima, rest, status };
@@ -89,7 +97,7 @@ export function preventivasDoVeiculo(v, planos, criterio = null, garantiaChassi 
 }
 
 const PRIO_G = ["VENCE_30", "VENCE_60", "ATIVA", "EXPIRADA"];
-const PRIO_P = ["VENCIDA", "NECESSARIA", "PROXIMA", "EM_DIA", "CONCLUIDO", "FORA_GARANTIA"];
+const PRIO_P = ["VENCIDA", "NECESSARIA", "PROXIMA", "SEM_REGISTRO", "EM_DIA", "CONCLUIDO", "FORA_GARANTIA"];
 const resumo = (l, prio) => prio.find((s) => l.some((x) => x.status === s)) ?? null;
 
 /** Acrescenta ao veículo os campos calculados usados pelo painel e pela ficha. */
@@ -102,7 +110,6 @@ export function avaliar(v, regras, planos, criterios = []) {
     garantias, prev, vigentes, criterio,
     emGarantia: criterio ? garantias.find((g) => g.criterio).status !== "EXPIRADA" : null,
     sChassi: resumo(garantias.filter((g) => g.origem === "CHASSI"), PRIO_G),
-    sCarroc: resumo(garantias.filter((g) => g.origem === "CARROCERIA"), PRIO_G),
     sPrev: resumo(prev, PRIO_P),
     critica: vigentes.slice().sort((a, b) => (a.dias ?? 1e9) - (b.dias ?? 1e9))[0] ?? null,
     prevCritica: prev.filter((p) => !["CONCLUIDO", "FORA_GARANTIA"].includes(p.status)).sort((a, b) => a.rest - b.rest)[0] ?? null,

@@ -90,6 +90,12 @@
   </header>
 
   <main>
+    <div class="abas" id="abas" role="tablist" hidden>
+      <button role="tab" data-vista="lista" aria-selected="true">Lista de revisões</button>
+      <button role="tab" data-vista="gerencial" aria-selected="false">Painel gerencial</button>
+    </div>
+    <section id="vista-gerencial" hidden></section>
+    <div id="vista-lista">
     <div class="acoes">
       <button class="btn prim" id="btn-novo">Cadastrar veículo</button>
       <button class="btn" id="btn-usuarios" hidden>Usuários e acessos</button>
@@ -111,11 +117,11 @@
           <thead><tr>
             <th><button data-ordem="prefixo">Prefixo</button></th>
             <th>Placa</th>
-            <th style="width:23%">Chassi</th>
-            <th style="width:21%">Carroceria</th>
-            <th><button data-ordem="preventiva">Preventiva</button></th>
+            <th style="width:24%">Chassi e garantia</th>
+            <th style="width:18%">Carroceria</th>
+            <th><button data-ordem="revisao" title="Do mais atrasado ao mais distante">Próxima revisão</button></th>
             <th class="dir-num"><button data-ordem="km">KM atual</button></th>
-            <th><button data-ordem="vencimento">Próximo vencimento</button></th>
+            <th><button data-ordem="vencimento">Garantia vence</button></th>
           </tr></thead>
           <tbody id="linhas"></tbody>
         </table>
@@ -124,6 +130,7 @@
         <span id="pag-info"></span>
         <span><button id="pag-ant">Anterior</button><button id="pag-prox">Próxima</button></span>
       </nav>
+    </div>
     </div>
   </main>
 </div>
