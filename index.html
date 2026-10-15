@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Controle de Frota — Garantias e Preventivas</title>
+<title>Univale — Controle de Frota</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚌</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -15,7 +15,7 @@
 
 <!-- Aparece enquanto o sistema carrega. Se os arquivos não carregarem, vira um diagnóstico. -->
 <section class="login" id="tela-inicial">
-  <div style="max-width:560px;background:var(--surface);border-top:4px solid #1e4fa3;padding:26px 28px">
+  <div style="max-width:560px;background:var(--surface);border-top:4px solid #00a19b;padding:26px 28px">
     <h1 style="margin:0;font:700 30px/1.1 var(--cond)">Controle de Frota</h1>
     <p id="diag-texto" style="color:var(--ink2);margin:8px 0 0">Carregando o sistema…</p>
     <ul id="diag-lista" style="margin:12px 0 0;padding-left:20px;font-size:14px"></ul>
@@ -48,6 +48,7 @@
 <!-- Login -->
 <section class="login" id="tela-login" hidden>
   <form id="form-login">
+    <div class="faixa-logo"><img src="logo-univale.png" alt="Univale"></div>
     <h1>Controle de Frota</h1>
     <p class="sub2">Garantias e manutenção preventiva</p>
     <label class="campo"><span>E-mail</span><input type="email" name="email" required autocomplete="username"></label>
@@ -59,6 +60,7 @@
     </p>
   </form>
   <form id="form-primeiro" hidden>
+    <div class="faixa-logo"><img src="logo-univale.png" alt="Univale"></div>
     <h1>Primeiro acesso</h1>
     <p class="sub2">Crie o administrador do sistema. Esta tela só funciona enquanto não existe nenhum administrador.</p>
     <label class="campo"><span>Código de instalação</span>
@@ -78,8 +80,8 @@
 <div id="tela-app" hidden>
   <header class="topo">
     <div class="in">
-      <div class="marca">Controle de Frota</div>
-      <div class="sub">Garantias e preventivas</div>
+      <img class="logo" src="logo-univale.png" alt="Univale">
+      <div class="titulo"><span class="marca">Controle de Frota</span><span class="sub">Garantias e preventivas</span></div>
       <div class="dir">
         <label>Filial <select id="filial"></select></label>
         <div class="usuario" id="usuario"></div>
@@ -146,6 +148,8 @@
 <dialog id="dlg-veiculo" class="largo">
   <form id="form-veiculo" method="dialog">
     <h2 id="titulo-veiculo">Cadastrar veículo</h2>
+    <div id="bloco-pend-form" hidden style="border-left:4px solid var(--amber-dot);background:var(--amber-bg);padding:8px 12px;margin:-4px 0 14px;font-size:14px">
+      <b>Pontos a conferir neste cadastro:</b><ul id="lista-pend-form" style="margin:4px 0 0;padding-left:18px"></ul></div>
     <input type="hidden" name="prefixo_original">
     <div class="grade-form">
       <label class="campo"><span>Prefixo</span><input name="prefixo" required maxlength="20" placeholder="F2900"></label>
@@ -163,6 +167,7 @@
       <label class="campo inteiro"><span>Tipo de serviço (contrato)</span><input name="tipo_servico" placeholder="Ex.: COMPLEXO MINAS CENTRAIS"></label>
       <div class="campo inteiro"><span>Planos de preventiva</span><div id="planos-veiculo" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:6px 14px"></div></div>
       <label class="check inteiro"><input type="checkbox" name="data_confirmada" checked> A data de início da garantia está confirmada</label>
+      <label class="check inteiro" id="campo-conferido" hidden><input type="checkbox" name="pendencias_conferidas"> Conferi o cadastro: remover as divergências apontadas pela importação</label>
     </div>
     <p class="erro-form" role="alert" hidden></p>
     <div class="rodape"><button type="button" class="btn" data-fechar>Cancelar</button><button class="btn prim" value="ok">Salvar</button></div>
