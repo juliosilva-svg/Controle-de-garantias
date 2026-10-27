@@ -112,6 +112,8 @@ export function avaliar(v, regras, planos, criterios = []) {
   return Object.assign(v, {
     garantias, prev, vigentes, criterio,
     emGarantia: criterio ? garantias.find((g) => g.criterio).status !== "EXPIRADA" : null,
+    // data em que a garantia de fábrica terminou (por tempo); pelo KM a data exata não é conhecida
+    fimGarantia: (() => { const g = garantias.find((x) => x.criterio); return g && g.status === "EXPIRADA" && g.motivo === "TEMPO" ? g.fim.getTime() : null; })(),
     sChassi: resumo(garantias.filter((g) => g.origem === "CHASSI"), PRIO_G),
     sPrev: resumo(prev, PRIO_P),
     critica: vigentes.slice().sort((a, b) => (a.dias ?? 1e9) - (b.dias ?? 1e9))[0] ?? null,

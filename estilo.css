@@ -266,3 +266,7 @@ dialog.largo { width: min(920px, calc(100% - 24px)); }
 .tabela-ger tr.clicavel { cursor: pointer; } .tabela-ger tr.clicavel:hover td { background: var(--row-hover); }
 .tabela-ger .num { text-align: right; }
 .c-cinza-claro { background: #cfd6dc; }
+
+.abas .n { font: 500 13px var(--sans); color: var(--ink2); background: var(--track); border-radius: 10px; padding: 1px 8px; margin-left: 6px; vertical-align: 2px; }
+.abas button[aria-selected="true"] .n { background: var(--brand); color: #fff; }
+.metricas { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }

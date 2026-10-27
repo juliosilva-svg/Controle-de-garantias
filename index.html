@@ -92,9 +92,11 @@
   </header>
 
   <main>
-    <div class="abas" id="abas" role="tablist" hidden>
-      <button role="tab" data-vista="lista" aria-selected="true">Lista de revisões</button>
-      <button role="tab" data-vista="gerencial" aria-selected="false">Painel gerencial</button>
+    <div class="abas" id="abas" role="tablist">
+      <button role="tab" data-vista="em" aria-selected="true">Em garantia <span class="n"></span></button>
+      <button role="tab" data-vista="fora" aria-selected="false">Fora da garantia <span class="n"></span></button>
+      <button role="tab" data-vista="sem" aria-selected="false">Sem critério <span class="n"></span></button>
+      <button role="tab" data-vista="gerencial" aria-selected="false" id="aba-gerencial" hidden>Painel gerencial</button>
     </div>
     <section id="vista-gerencial" hidden></section>
     <div id="vista-lista">
@@ -116,15 +118,7 @@
     <div class="quadro">
       <div class="rolagem">
         <table class="grade">
-          <thead><tr>
-            <th><button data-ordem="prefixo">Prefixo</button></th>
-            <th>Placa</th>
-            <th style="width:24%">Chassi e garantia</th>
-            <th style="width:18%">Carroceria</th>
-            <th><button data-ordem="revisao" title="Do mais atrasado ao mais distante">Próxima revisão</button></th>
-            <th class="dir-num"><button data-ordem="km">KM atual</button></th>
-            <th><button data-ordem="vencimento">Garantia vence</button></th>
-          </tr></thead>
+          <thead id="cabecalho"></thead>
           <tbody id="linhas"></tbody>
         </table>
       </div>

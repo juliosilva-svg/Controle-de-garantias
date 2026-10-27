@@ -40,8 +40,19 @@ const placaHtml = (p, grande = false) => !p ? `<span class="placa antiga ${grand
   ? `<span class="placa antiga ${grande ? "grande" : ""}" title="Placa no padrão antigo"><span class="txt">${p.slice(0, 3)}-${p.slice(3)}</span></span>`
   : `<span class="placa ${grande ? "grande" : ""}"><span class="faixa" aria-hidden="true">BRASIL</span><span class="txt">${esc(p)}</span></span>`;
 
+/* ------------------------------------------------------------------ cadastro a revisar */
+/** Pendências do veículo: as gravadas pelas importações (divergências) e as verificadas na hora. */
+function pendenciasDe(v) {
+  const lista = (v.pendencias ?? []).map((t) => ({ texto: t.replace(/^\[[^\]]+\]\s*/, ""), origem: (t.match(/^\[([^\]]+)\]/) ?? [])[1] ?? "Importação", gravada: true }));
+  if (!v.placa) lista.push({ texto: "Veículo sem placa cadastrada" });
+  if (!est.dados.filiais.some((f) => f.codigo === v.filial_codigo) || v.filial_codigo === "SEM") lista.push({ texto: "Garagem não definida" });
+  if (!v.data_confirmada) lista.push({ texto: "Data de fabricação (início da garantia) não confirmada" });
+  if (/^A DEFINIR$/i.test(v.modelo)) lista.push({ texto: "Modelo do chassi não informado" });
+  return lista;
+}
+
 /* ------------------------------------------------------------------ estado */
-const est = { dados: null, usuario: null, filial: "", filtro: "todos", busca: "", ordem: "revisao", vista: "lista", pagina: 0, fichaAberta: null };
+const est = { dados: null, usuario: null, filial: "", filtro: "todos", busca: "", ordem: "revisao", vista: "em", pagina: 0, fichaAberta: null };
 const POR_PAGINA = 25;
 const admin = () => est.usuario?.perfil === "ADMIN";
 
@@ -108,12 +119,14 @@ async function recarregar() {
   const d = await comCarregamento(() => chamar("carregar"));
   d.criterios = d.criterios ?? [];
   d.veiculos.forEach((v) => avaliar(v, d.regras, d.planos, d.criterios));
+  est.dados = d;
+  d.veiculos.forEach((v) => { v.pend = pendenciasDe(v); });
   est.dados = d; est.usuario = d.usuario;
   $("usuario").innerHTML = `${esc(d.usuario.nome)}<span>${admin() ? "Acesso a todas as filiais" : esc(d.filiais[0]?.nome ?? d.usuario.filial_codigo)}</span>`;
   $("btn-usuarios").hidden = !admin();
   $("btn-criterios").hidden = !admin();
-  $("abas").hidden = !admin();
-  if (!admin()) est.vista = "lista";
+  $("aba-gerencial").hidden = !admin();
+  if (!admin() && est.vista === "gerencial") est.vista = "em";
   const sel = $("filial");
   sel.innerHTML = (admin() ? `<option value="">Todas as filiais</option>` : "") +
     d.filiais.map((f) => `<option value="${esc(f.codigo)}">${esc(f.nome)}</option>`).join("");
@@ -129,20 +142,13 @@ async function recarregar() {
 $("btn-atualizar").onclick = () => recarregar().then(() => avisar("Dados atualizados.")).catch((e) => avisar(e.message, true));
 
 /* ------------------------------------------------------------------ painel */
-const FILTROS = {
-  alerta: ["Precisam de atenção", (v) => ["VENCE_30", "VENCE_60"].includes(v.sChassi) || ["VENCIDA", "NECESSARIA"].includes(v.sPrev)],
-  todos: ["Todos", () => true],
-  vencendo: ["Garantia a vencer", (v) => ["VENCE_30", "VENCE_60"].includes(v.sChassi)],
-  em_garantia: ["Em garantia", (v) => v.emGarantia === true],
-  fora_garantia: ["Fora da garantia", (v) => v.emGarantia === false],
-  sem_criterio: ["Sem critério", (v) => !v.criterio],
-  preventiva: ["Preventiva pendente", (v) => ["VENCIDA", "NECESSARIA"].includes(v.sPrev)],
-};
 const PESO_P = { VENCIDA: 0, NECESSARIA: 1, PROXIMA: 2, SEM_REGISTRO: 3, EM_DIA: 4, CONCLUIDO: 5, FORA_GARANTIA: 6 };
 const ORDENS = {
   prefixo: (a, b) => a.prefixo.localeCompare(b.prefixo, "pt-BR", { numeric: true }),
   km: (a, b) => b.km_atual - a.km_atual,
   // lista de revisões: do mais atrasado (KM restante mais negativo) ao mais distante; sem revisão ativa no fim
+  encerramento: (a, b) => (b.fimGarantia ?? 0) - (a.fimGarantia ?? 0) || a.prefixo.localeCompare(b.prefixo, "pt-BR", { numeric: true }),
+  modelo: (a, b) => a.modelo.localeCompare(b.modelo, "pt-BR") || a.prefixo.localeCompare(b.prefixo, "pt-BR", { numeric: true }),
   revisao: (a, b) => (a.prevCritica?.rest ?? Infinity) - (b.prevCritica?.rest ?? Infinity) || a.prefixo.localeCompare(b.prefixo, "pt-BR", { numeric: true }),
   vencimento: (a, b) => (a.critica?.dias ?? 1e9) - (b.critica?.dias ?? 1e9) || a.prefixo.localeCompare(b.prefixo, "pt-BR", { numeric: true }),
   preventiva: (a, b) => (PESO_P[a.sPrev ?? "EM_DIA"] - PESO_P[b.sPrev ?? "EM_DIA"]) || (a.prevCritica?.rest ?? 0) - (b.prevCritica?.rest ?? 0),
@@ -150,62 +156,100 @@ const ORDENS = {
 
 $("filial").onchange = (e) => { est.filial = e.target.value; est.pagina = 0; render(); };
 $("busca").oninput = (e) => { est.busca = e.target.value; est.pagina = 0; render(); };
-document.querySelectorAll("[data-ordem]").forEach((b) => (b.onclick = () => { est.ordem = b.dataset.ordem; est.pagina = 0; render(); }));
 $("pag-ant").onclick = () => { est.pagina--; render(); };
 $("pag-prox").onclick = () => { est.pagina++; render(); };
 
-function render() {
-  if (est.vista === "gerencial") renderGerencial();
-  const todos = est.dados.veiculos;
-  const daFilial = todos.filter((v) => !est.filial || v.filial_codigo === est.filial);
-  const temG = (v, ...s) => s.includes(v.sChassi);
-  const semLeitura = Date.now() - 7 * DIA;
-  const m = {
-    total: daFilial.length,
-    v60: daFilial.filter((v) => temG(v, "VENCE_30", "VENCE_60")).length,
-    v30: daFilial.filter((v) => temG(v, "VENCE_30")).length,
-    sem: daFilial.filter((v) => v.emGarantia === false).length,
-    em: daFilial.filter((v) => v.emGarantia === true).length,
-    semCrit: daFilial.filter((v) => !v.criterio).length,
-    prev: daFilial.filter((v) => ["VENCIDA", "NECESSARIA"].includes(v.sPrev)).length,
-    prox: daFilial.filter((v) => v.sPrev === "PROXIMA").length,
-    est: daFilial.filter((v) => !v.data_confirmada).length,
-    semKm: daFilial.filter((v) => !v.km_atualizado_em || new Date(v.km_atualizado_em) < semLeitura).length,
-  };
-  $("metricas").innerHTML = [
-    [m.total, "Veículos na frota", `${nf.format(m.semKm)} sem KM lançado há 7 dias ou mais`, ""],
-    [m.v60, "Garantia a vencer", `${nf.format(m.v30)} em até 30 dias, o restante em até 60`, m.v60 ? "ambar" : ""],
-    [m.sem, "Fora da garantia", `${nf.format(m.em)} em garantia de fábrica${m.semCrit ? `; ${nf.format(m.semCrit)} sem critério para o tipo de chassi` : ""}`, m.sem ? "vermelho" : ""],
-    [m.prev, "Preventivas pendentes", `Necessárias ou vencidas; ${nf.format(m.prox)} próximas`, m.prev ? "vermelho" : ""],
-  ].map(([v, t, d, c]) => `<div class="metrica"><div class="v num ${c}">${nf.format(v)}</div><div class="t">${t}</div><div class="d">${d}</div></div>`).join("");
-  $("aviso").hidden = !m.est;
-  $("aviso").textContent = `${nf.format(m.est)} veículos estão com a data de início da garantia estimada (01/01 do ano do chassi). Corrija a data na ficha do veículo, em "Editar dados", para os prazos ficarem exatos.`;
+/* ------------------------------------------------------------------ telas: em garantia, fora da garantia, sem critério */
+const atrasada = (v) => ["VENCIDA", "NECESSARIA"].includes(v.prevCritica?.status);
+const vence60 = (v) => ["VENCE_30", "VENCE_60"].includes(v.sChassi);
+const COL = {
+  prefixo: { rot: "Prefixo", ordem: "prefixo", html: (v) => `<button class="prefixo">${esc(v.prefixo)}</button>${v.pend.length ? `<div class="sinal s-amarelo" style="font-size:12px" title="${esc(v.pend.map((p) => p.texto).join("\n"))}">Revisar cadastro (${v.pend.length})</div>` : ""}<div class="peq">${esc(v.filial_nome)}</div>${v.tipo_servico ? `<div class="peq" style="font-size:11px;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(v.tipo_servico)}">${esc(v.tipo_servico)}</div>` : ""}` },
+  placa: { rot: "Placa", html: (v) => placaHtml(v.placa) },
+  chassi: { rot: "Chassi", largura: "21%", ordem: "modelo", html: (v) => `<div class="mod"><b>${esc(v.fabricante)}</b> <i>${esc(v.modelo)} ${v.ano_fabricacao ?? ""}</i></div>${v.criterio ? `<span class="peq">${esc(v.criterio.tipo_chassi)}</span>` : ""}` },
+  carroceria: { rot: "Carroceria", largura: "14%", html: (v) => v.encarrocadora ? `<div class="mod"><b>${esc(v.encarrocadora)}</b> <i>${esc(v.modelo_carroceria ?? "")}</i></div>` : `<span class="peq">Monobloco</span>` },
+  revisao: { rot: "Próxima revisão", ordem: "revisao", html: (v) => v.sPrev && v.prevCritica ? `${sinal(ROT_P[v.prevCritica.status])}<div class="peq num" style="white-space:nowrap">${esc(v.prevCritica.nome)}</div><div class="peq num" style="white-space:nowrap">${v.prevCritica.rest < 0 ? `${fmtKm(-v.prevCritica.rest)} além` : `faltam ${fmtKm(v.prevCritica.rest)}`}</div>` : `<span class="peq">Sem revisão ativa</span>` },
+  km: { rot: "KM atual", ordem: "km", num: true, html: (v) => fmtKm(v.km_atual) },
+  vence: { rot: "Garantia vence", ordem: "vencimento", html: (v) => v.critica ? `${sinal(ROT_G[v.critica.status])}<div class="peq" style="font-size:13px">${prazo(v.critica.dias)}${v.critica.motivo === "KM" ? " pela KM" : ""}</div>${v.critica.fimEstimado ? `<div class="peq" style="font-size:12px">${fmtData(v.critica.fimEstimado)}</div>` : ""}` : "—" },
+  encerrada: { rot: "Garantia encerrada", ordem: "encerramento", html: (v) => v.fimGarantia ? `${fmtData(new Date(v.fimGarantia))}<div class="peq" style="font-size:12px">há ${nf.format(Math.max(0, Math.round((hoje() - v.fimGarantia) / DIA)))} dias</div>` : `<span class="peq">pelo limite de KM</span>` },
+  ano: { rot: "Ano do chassi", num: true, html: (v) => v.ano_fabricacao ?? "—" },
+};
+const VISTAS = {
+  em: {
+    base: (v) => v.emGarantia === true, ordem: "revisao", vazio: "Nenhum veículo em garantia com esses filtros.",
+    colunas: ["prefixo", "placa", "chassi", "carroceria", "revisao", "km", "vence"],
+    filtros: { todos: ["Todos", () => true], atencao: ["Precisam de atenção", (v) => vence60(v) || atrasada(v)],
+      vencendo: ["Garantia vence em 60 dias", vence60], revisao: ["Revisão atrasada", atrasada], revisar: ["Cadastro a revisar", (v) => v.pend.length > 0] },
+    metricas: (l, total) => [
+      [l.length, "Em garantia", `${pct(l.length, total)}% dos ${nf.format(total)} veículos`, "verde"],
+      [l.filter(vence60).length, "Garantia vence em 60 dias", `${nf.format(l.filter((v) => v.sChassi === "VENCE_30").length)} em até 30 dias`, l.some(vence60) ? "ambar" : ""],
+      [l.filter(atrasada).length, "Revisões atrasadas", `${nf.format(l.filter((v) => v.prevCritica?.status === "VENCIDA").length)} além da tolerância`, l.some(atrasada) ? "vermelho" : ""],
+      [l.filter((v) => v.prevCritica?.status === "PROXIMA").length, "Revisões próximas", `${nf.format(l.filter((v) => v.prevCritica?.status === "SEM_REGISTRO").length)} sem registro de revisão`, ""],
+    ],
+  },
+  fora: {
+    base: (v) => v.emGarantia === false, ordem: "encerramento", vazio: "Nenhum veículo fora da garantia com esses filtros.",
+    colunas: ["prefixo", "placa", "chassi", "carroceria", "km", "encerrada", "revisao"],
+    filtros: { todos: ["Todos", () => true], recentes: ["Encerrada nos últimos 90 dias", (v) => v.fimGarantia && hoje() - v.fimGarantia <= 90 * DIA],
+      preventiva: ["Preventiva pendente", atrasada], revisar: ["Cadastro a revisar", (v) => v.pend.length > 0] },
+    metricas: (l, total) => [
+      [l.length, "Fora da garantia", `${pct(l.length, total)}% dos ${nf.format(total)} veículos`, "vermelho"],
+      [l.filter((v) => v.fimGarantia && hoje() - v.fimGarantia <= 90 * DIA).length, "Encerradas nos últimos 90 dias", "Garantia de fábrica terminou recentemente", ""],
+      [l.filter(atrasada).length, "Preventivas pendentes", "Planos de preventiva fora da revisão de garantia", l.some(atrasada) ? "vermelho" : ""],
+      [l.filter((v) => v.pend.length).length, "Cadastro a revisar", "Divergências para conferir", l.some((v) => v.pend.length) ? "ambar" : ""],
+    ],
+  },
+  sem: {
+    base: (v) => !v.criterio, ordem: "modelo", vazio: "Todos os veículos têm critério de garantia.",
+    colunas: ["prefixo", "placa", "chassi", "carroceria", "ano", "km", "revisao"],
+    filtros: { todos: ["Todos", () => true], revisar: ["Cadastro a revisar", (v) => v.pend.length > 0] },
+    metricas: (l) => [
+      [l.length, "Sem critério de garantia", "A situação de garantia não é calculada", l.length ? "ambar" : ""],
+      [new Set(l.map((v) => chaveModelo(v.modelo))).size, "Modelos de chassi sem critério", admin() ? "Cadastre em Critérios de garantia" : "O administrador cadastra os critérios", ""],
+      [l.filter((v) => v.pend.length).length, "Cadastro a revisar", "Divergências para conferir", ""],
+    ],
+  },
+};
 
-  $("chips").innerHTML = Object.entries(FILTROS).map(([k, [rot, f]]) =>
-    `<button class="chip" data-f="${k}" aria-pressed="${est.filtro === k}">${rot}<span class="n num">${daFilial.filter(f).length}</span></button>`).join("");
+function render() {
+  const daFilial = est.dados.veiculos.filter((v) => !est.filial || v.filial_codigo === est.filial);
+  // contagens nas abas
+  for (const [k, cfg] of Object.entries(VISTAS)) {
+    const b = document.querySelector(`#abas [data-vista="${k}"] .n`);
+    if (b) b.textContent = nf.format(daFilial.filter(cfg.base).length);
+  }
+  document.querySelectorAll("#abas [data-vista]").forEach((x) => x.setAttribute("aria-selected", x.dataset.vista === est.vista));
+  $("vista-lista").hidden = est.vista === "gerencial";
+  $("vista-gerencial").hidden = est.vista !== "gerencial";
+  if (est.vista === "gerencial") { renderGerencial(); return; }
+
+  const cfg = VISTAS[est.vista];
+  if (!cfg.filtros[est.filtro]) est.filtro = "todos";
+  const base = daFilial.filter(cfg.base);
+  $("metricas").innerHTML = cfg.metricas(base, daFilial.length).map(([v, t, d, c]) =>
+    `<div class="metrica"><div class="v num ${c}" style="${c === "verde" ? "color:var(--green)" : ""}">${nf.format(v)}</div><div class="t">${t}</div><div class="d">${d}</div></div>`).join("");
+  const estimadas = base.filter((v) => !v.data_confirmada).length;
+  $("aviso").hidden = !estimadas;
+  $("aviso").textContent = `${nf.format(estimadas)} veículos desta lista estão com a data de fabricação estimada. Corrija em "Editar dados" para os prazos ficarem exatos.`;
+
+  $("chips").innerHTML = Object.entries(cfg.filtros).map(([k, [rot, f]]) =>
+    `<button class="chip" data-f="${k}" aria-pressed="${est.filtro === k}">${rot}<span class="n num">${base.filter(f).length}</span></button>`).join("");
   $("chips").querySelectorAll(".chip").forEach((b) => (b.onclick = () => { est.filtro = b.dataset.f; est.pagina = 0; render(); }));
 
+  const colunas = cfg.colunas.map((c) => COL[c]);
+  $("cabecalho").innerHTML = `<tr>${colunas.map((c) => `<th class="${c.num ? "dir-num" : ""}" ${c.largura ? `style="width:${c.largura}"` : ""}>${c.ordem
+    ? `<button data-ordem="${c.ordem}" aria-current="${est.ordem === c.ordem}">${c.rot}</button>` : c.rot}</th>`).join("")}</tr>`;
+  $("cabecalho").querySelectorAll("[data-ordem]").forEach((b) => (b.onclick = () => { est.ordem = b.dataset.ordem; est.pagina = 0; render(); }));
+
   const termo = est.busca.toUpperCase().replace(/[^A-Z0-9]/g, "");
-  const lista = daFilial.filter(FILTROS[est.filtro][1])
+  const lista = base.filter(cfg.filtros[est.filtro][1])
     .filter((v) => !termo || `${v.prefixo}${v.placa}${v.modelo}${v.modelo_carroceria ?? ""}${v.tipo_servico ?? ""}`.toUpperCase().replace(/[^A-Z0-9]/g, "").includes(termo))
-    .sort(ORDENS[est.ordem]);
-  document.querySelectorAll("[data-ordem]").forEach((b) => b.setAttribute("aria-current", b.dataset.ordem === est.ordem));
+    .sort(ORDENS[est.ordem] ?? ORDENS[cfg.ordem]);
   const paginas = Math.max(1, Math.ceil(lista.length / POR_PAGINA));
   est.pagina = Math.min(Math.max(est.pagina, 0), paginas - 1);
   const ini = est.pagina * POR_PAGINA, vis = lista.slice(ini, ini + POR_PAGINA);
-
-  const col = (s, fab, mod) => !fab ? `<span class="peq">Monobloco</span>`
-    : `<div class="mod"><b>${esc(fab)}</b> <i>${esc(mod)}</i></div>${s ? sinal(ROT_G[s]) : `<span class="peq">Sem regra de garantia</span>`}`;
-  $("linhas").innerHTML = vis.length ? vis.map((v) => `
-    <tr data-p="${esc(v.prefixo)}">
-      <td><button class="prefixo">${esc(v.prefixo)}</button><div class="peq">${esc(v.filial_nome)}</div>${v.tipo_servico ? `<div class="peq" style="font-size:11px;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(v.tipo_servico)}">${esc(v.tipo_servico)}</div>` : ""}</td>
-      <td>${placaHtml(v.placa)}</td>
-      <td>${col(v.sChassi, v.fabricante, `${v.modelo} ${v.ano_fabricacao}`)}</td>
-      <td>${v.encarrocadora ? `<div class="mod"><b>${esc(v.encarrocadora)}</b> <i>${esc(v.modelo_carroceria ?? "")}</i></div>` : `<span class="peq">Monobloco</span>`}</td>
-      <td>${v.sPrev && v.prevCritica ? `${sinal(ROT_P[v.sPrev])}<div class="peq num" style="white-space:nowrap">${v.prevCritica.rest < 0 ? `${fmtKm(-v.prevCritica.rest)} além` : `faltam ${fmtKm(v.prevCritica.rest)}`}</div>` : `<span class="peq">Sem plano</span>`}</td>
-      <td class="dir-num num">${fmtKm(v.km_atual)}</td>
-      <td style="font-size:14px">${v.critica ? `<div style="font-weight:500">${esc(v.critica.componente)}</div><div class="peq" style="font-size:13px">${prazo(v.critica.dias)}${v.critica.motivo === "KM" ? " pela KM" : ""}${v.data_confirmada ? "" : " (estimado)"}</div>` : `<span class="peq" style="font-size:14px">Nenhuma garantia vigente</span>`}</td>
-    </tr>`).join("") : `<tr><td colspan="7" class="vazio">${todos.length ? "Nenhum veículo com esses filtros. Limpe a busca ou escolha outra situação." : "Nenhum veículo cadastrado ainda. Use Cadastrar veículo."}</td></tr>`;
+  $("linhas").innerHTML = vis.length
+    ? vis.map((v) => `<tr data-p="${esc(v.prefixo)}">${colunas.map((c) => `<td class="${c.num ? "dir-num num" : ""}">${c.html(v)}</td>`).join("")}</tr>`).join("")
+    : `<tr><td colspan="${colunas.length}" class="vazio">${base.length ? "Nenhum veículo com esses filtros. Limpe a busca ou escolha outro filtro." : cfg.vazio}</td></tr>`;
   $("pag-info").textContent = lista.length ? `${ini + 1}–${Math.min(ini + POR_PAGINA, lista.length)} de ${lista.length}` : "0 veículos";
   $("pag-ant").disabled = est.pagina === 0;
   $("pag-prox").disabled = est.pagina >= paginas - 1;
@@ -306,7 +350,16 @@ async function abrirFicha(prefixo, filtroHist = "todas", detalhe = null) {
     .map(([o, t]) => [t, v.garantias.filter((g) => g.origem === o)]).filter(([, l]) => l.length);
   const ultima = detalhe.historico.find((h) => h.status === "ACEITA");
   const inicio = paraData(v.data_inicio_garantia);
-  corpo.innerHTML = `
+  const avisoPend = v.pend.length ? `
+    <section class="cartao" style="border-left:4px solid var(--amber-dot)">
+      <h3>Cadastro a revisar <small>${v.pend.length} ${v.pend.length === 1 ? "item" : "itens"}</small></h3>
+      <div class="cont" style="padding:10px 20px 14px">
+        <ul style="margin:0 0 12px;padding-left:18px;font-size:14px">${v.pend.map((p) => `<li style="margin-bottom:4px">${esc(p.texto)}${p.origem ? ` <span class="peq">(${esc(p.origem)})</span>` : ""}</li>`).join("")}</ul>
+        <button class="btn prim" id="f-editar-pend">Editar dados e conferir</button>
+        <span class="peq" style="margin-left:8px">Corrija o que for preciso e marque "Conferi o cadastro" ao salvar.</span>
+      </div>
+    </section>` : "";
+  corpo.innerHTML = avisoPend + `
     <section class="cartao cabeca">
       <div>
         <div class="linha-id"><h2>${esc(v.prefixo)}</h2>${placaHtml(v.placa, true)}</div>
@@ -349,6 +402,7 @@ async function abrirFicha(prefixo, filtroHist = "todas", detalhe = null) {
   $("f-km").onclick = () => abrirKm(v);
   $("f-manut").onclick = () => abrirManut(v);
   $("f-editar").onclick = () => abrirVeiculo(v);
+  if ($("f-editar-pend")) $("f-editar-pend").onclick = () => abrirVeiculo(v);
 }
 function fecharFicha() {
   est.fichaAberta = null;
@@ -404,6 +458,10 @@ function abrirVeiculo(v = null) {
     f.ano_fabricacao.value = new Date().getFullYear();
     f.data_inicio_garantia.value = isoLocal(new Date()).slice(0, 10);
   }
+  $("campo-conferido").hidden = !(v?.pendencias?.length);
+  f.pendencias_conferidas.checked = false;
+  $("lista-pend-form").innerHTML = (v?.pend ?? []).map((p) => `<li>${esc(p.texto)}</li>`).join("");
+  $("bloco-pend-form").hidden = !(v?.pend?.length);
   const marcados = new Set(v?.planos ?? []);
   $("planos-veiculo").innerHTML = est.dados.planos.map((p, i) => `<label class="check"><input type="checkbox" name="plano_${i}" value="${esc(p.nome)}" ${marcados.has(p.nome) ? "checked" : ""}> ${esc(p.nome)}</label>`).join("")
     || `<span class="peq">Nenhum plano cadastrado na aba Planos.</span>`;
@@ -415,7 +473,7 @@ ligarFormulario($("form-veiculo"), "salvarVeiculo", (f) => ({
   fabricante: f.fabricante.value, modelo: f.modelo.value, encarrocadora: f.encarrocadora.value, modelo_carroceria: f.modelo_carroceria.value,
   ano_fabricacao: Number(f.ano_fabricacao.value), filial_codigo: f.filial_codigo.value, data_inicio_garantia: f.data_inicio_garantia.value,
   km_inicio_garantia: Number(f.km_inicio_garantia.value || 0), km_atual: Number(f.km_atual.value || 0), data_confirmada: f.data_confirmada.checked,
-  tipo_servico: f.tipo_servico.value, planos: [...f.querySelectorAll("#planos-veiculo input:checked")].map((c) => c.value),
+  tipo_servico: f.tipo_servico.value, pendencias_conferidas: f.pendencias_conferidas.checked, planos: [...f.querySelectorAll("#planos-veiculo input:checked")].map((c) => c.value),
 }), (r) => reabrir(r.prefixo, "Veículo salvo na planilha."));
 
 // KM
@@ -505,9 +563,8 @@ formU.onsubmit = async (e) => {
 /* ------------------------------------------------------------------ painel gerencial (administrador) */
 document.querySelectorAll("#abas [data-vista]").forEach((b) => (b.onclick = () => {
   est.vista = b.dataset.vista;
-  document.querySelectorAll("#abas [data-vista]").forEach((x) => x.setAttribute("aria-selected", x === b));
-  $("vista-lista").hidden = est.vista !== "lista";
-  $("vista-gerencial").hidden = est.vista !== "gerencial";
+  est.filtro = "todos"; est.pagina = 0;
+  if (VISTAS[est.vista]) est.ordem = VISTAS[est.vista].ordem;
   render();
 }));
 
@@ -536,7 +593,7 @@ function renderGerencial() {
   const semKm = lista.filter((v) => !v.km_atualizado_em || Date.now() - new Date(v.km_atualizado_em) > 7 * DIA).length;
 
   const kpis = [
-    [nf.format(total), "", "Veículos", `${nf.format(semKm)} sem KM atualizado há 7 dias ou mais`, ""],
+    [nf.format(total), "", "Veículos", `${nf.format(lista.filter((v) => v.pend.length).length)} com cadastro a revisar; ${nf.format(semKm)} sem KM há 7 dias ou mais`, ""],
     [nf.format(em), `${pct(em, total)}%`, "Em garantia", `${nf.format(v60)} vencem nos próximos 60 dias`, "verde"],
     [nf.format(fora), `${pct(fora, total)}%`, "Fora da garantia", semCrit ? `${nf.format(semCrit)} sem critério cadastrado` : "Todos os tipos de chassi com critério", fora ? "vermelho" : ""],
     [nf.format(vencidas + necess), "", "Revisões atrasadas", `${nf.format(vencidas)} além da tolerância`, vencidas + necess ? "vermelho" : ""],
