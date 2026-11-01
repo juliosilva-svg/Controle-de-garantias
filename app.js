@@ -561,6 +561,7 @@ async function listarUsuarios() {
     <td>${esc(u.nome)}</td><td>${esc(u.email)}</td>
     <td>${u.perfil === "ADMIN" ? "Administrador" : esc(nomes[u.filial_codigo] ?? u.filial_codigo)}</td>
     <td>${u.ativo ? `<span class="s-verde">Ativo</span>` : `<span class="s-vermelho">Bloqueado</span>`}${u.tem_senha ? "" : ` <span class="peq">(sem senha)</span>`}</td>
+    <td>${u.recebe_alertas !== false ? "Sim" : `<span class="peq">Não</span>`}</td>
     <td><button class="btn" data-i="${i}">Editar</button></td></tr>`).join("");
   $("lista-usuarios").querySelectorAll("[data-i]").forEach((b) => (b.onclick = () => {
     const u = lista[b.dataset.i];
@@ -569,7 +570,7 @@ async function listarUsuarios() {
     formU.nome.value = u.nome; formU.email.value = u.email; formU.email.readOnly = true;
     formU.perfil.value = u.perfil; formU.perfil.onchange();
     if (u.filial_codigo) formU.filial_codigo.value = u.filial_codigo;
-    formU.ativo.checked = u.ativo; formU.senha.required = false;
+    formU.ativo.checked = u.ativo; formU.recebe_alertas.checked = u.recebe_alertas !== false; formU.senha.required = false;
     $("dica-senha").textContent = "Deixe em branco para manter a senha atual";
     formU.nome.focus();
   }));
@@ -583,7 +584,8 @@ formU.onsubmit = async (e) => {
   e.preventDefault();
   const erro = formU.querySelector(".erro-form"); erro.hidden = true;
   const dados = { nome: formU.nome.value, email: formU.email.value, perfil: formU.perfil.value,
-    filial_codigo: formU.perfil.value === "ADMIN" ? "" : formU.filial_codigo.value, ativo: formU.ativo.checked ? "S" : "N" };
+    filial_codigo: formU.perfil.value === "ADMIN" ? "" : formU.filial_codigo.value, ativo: formU.ativo.checked ? "S" : "N",
+    recebe_alertas: formU.recebe_alertas.checked ? "S" : "N" };
   if (formU.senha.value) dados.senha = formU.senha.value;
   try {
     await comCarregamento(() => chamar("salvarUsuario", dados));
