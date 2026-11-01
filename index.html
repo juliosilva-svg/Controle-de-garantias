@@ -101,7 +101,7 @@
     <section id="vista-gerencial" hidden></section>
     <div id="vista-lista">
     <div class="acoes">
-      <button class="btn prim" id="btn-novo">Cadastrar veículo</button>
+      <button class="btn prim" id="btn-novo">Editar veículo</button>
       <button class="btn" id="btn-usuarios" hidden>Usuários e acessos</button>
       <button class="btn" id="btn-criterios" hidden>Critérios de garantia</button>
       <button class="btn" id="btn-atualizar">Atualizar dados</button>
@@ -170,6 +170,18 @@
 <datalist id="lista-fabricantes"></datalist>
 <datalist id="lista-encarrocadoras"></datalist>
 
+<!-- Escolher veículo para editar -->
+<dialog id="dlg-escolher">
+  <form id="form-escolher">
+    <h2>Editar veículo</h2>
+    <p class="peq" style="font-size:14px;margin:-6px 0 12px">Os veículos novos chegam pela integração com o TransNet. Aqui você corrige os dados de um veículo existente.</p>
+    <label class="campo"><span>Prefixo ou placa</span><input name="busca_veiculo" list="lista-veiculos" required autocomplete="off" placeholder="Ex.: F2550"></label>
+    <datalist id="lista-veiculos"></datalist>
+    <p class="erro-form" role="alert" hidden></p>
+    <div class="rodape"><button type="button" class="btn" data-fechar>Cancelar</button><button class="btn prim">Abrir cadastro</button></div>
+  </form>
+</dialog>
+
 <!-- Lançar KM -->
 <dialog id="dlg-km">
   <form id="form-km" method="dialog">
@@ -195,6 +207,9 @@
       <label class="campo"><span>KM na execução</span><input name="km_execucao" type="number" min="0" required></label>
       <label class="campo"><span>Data da execução</span><input name="data_execucao" type="date" required></label>
       <label class="campo"><span>Ordem de serviço</span><input name="ordem_servico" maxlength="40"></label>
+      <label class="campo"><span id="rot-nf">Nota fiscal do serviço</span><input name="nota_fiscal" maxlength="40" placeholder="Número da NF"></label>
+      <label class="campo inteiro"><span>Arquivo da nota fiscal (opcional)</span><input name="nota_fiscal_arquivo" type="file" accept="application/pdf,image/*">
+        <small>PDF ou foto, até 10 MB. Fica guardado no Google Drive, na pasta "Notas fiscais - Controle de Frota".</small></label>
       <label class="campo inteiro"><span>Observação</span><textarea name="observacao" rows="2"></textarea></label>
     </div>
     <p class="erro-form" role="alert" hidden></p>

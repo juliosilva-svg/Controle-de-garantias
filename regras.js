@@ -83,7 +83,15 @@ export function preventivasDoVeiculo(v, planos, criterio = null, garantiaChassi 
     .filter(([n]) => /^revis[aã]o de garantia/i.test(n)).map(([, k]) => k));
   return lista.map((p) => {
     const ultima = p.criterio ? (ultimaGarantia >= 0 ? ultimaGarantia : null) : v.ultimas_revisoes?.[p.nome] ?? null;
-    const base = ultima ?? v.km_inicio_garantia;
+    let base = ultima ?? v.km_inicio_garantia;
+    let marco = null;
+    if (p.criterio && ultima != null) {
+      // revisão de garantia segue marcos fixos do fabricante (30, 60, 90 mil...): a feita com 32.000 conta como a de 30.000
+      // e a próxima é 60.000, sem somar o atraso ou o adiantamento
+      const passos = Math.max(1, Math.round((ultima - v.km_inicio_garantia) / p.intervalo_km));
+      marco = v.km_inicio_garantia + passos * p.intervalo_km;
+      base = marco;
+    }
     let proxima = base + p.intervalo_km, rest = proxima - v.km_atual;
     let status = rest < -p.tolerancia_km ? "VENCIDA" : rest <= 0 ? "NECESSARIA" : rest <= p.antecedencia_km ? "PROXIMA" : "EM_DIA";
     // Sem nenhuma revisão registrada e já com mais de dois ciclos rodados: o atraso calculado desde o KM zero não é real.
@@ -95,7 +103,7 @@ export function preventivasDoVeiculo(v, planos, criterio = null, garantiaChassi 
     }
     if (p.km_final && proxima > p.km_final) status = "CONCLUIDO";
     if (p.foraGarantia) status = "FORA_GARANTIA"; // revisão de garantia deixa de ser exigida
-    return { ...p, ultima, base, proxima, rest, status };
+    return { ...p, ultima, marco, base, proxima, rest, status };
   });
 }
 

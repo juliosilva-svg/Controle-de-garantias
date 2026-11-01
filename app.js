@@ -294,7 +294,7 @@ function itemPreventiva(p, v) {
   }
   return `<article class="item"><header><h4>${esc(p.nome)}</h4>${sinal([rot, tom])}</header>
     <p style="margin:4px 0 8px;font-size:14px">Próxima em <b class="num" style="font-weight:500">${fmtKm(p.proxima)}</b>, ${p.rest >= 0 ? `faltam ${fmtKm(p.rest)}` : `${fmtKm(-p.rest)} além do previsto`}.</p>
-    ${barra((v.km_atual - p.base) / p.intervalo_km, tom, p.ultima != null ? `Última: ${nf.format(p.ultima)}` : `Base: ${nf.format(p.base)}`, nf.format(v.km_atual), nf.format(p.proxima), `Intervalo consumido: ${p.nome}`)}
+    ${barra((v.km_atual - p.base) / p.intervalo_km, tom, p.marco != null ? `Feita: ${nf.format(p.ultima)} (marco ${nf.format(p.marco)})` : p.ultima != null ? `Última: ${nf.format(p.ultima)}` : `Base: ${nf.format(p.base)}`, nf.format(v.km_atual), nf.format(p.proxima), `Intervalo consumido: ${p.nome}`)}
     ${p.ultima == null ? `<p class="nota">Sem revisão registrada; o cálculo parte do KM de início da garantia.</p>` : ""}</article>`;
 }
 function grafico(hist) {
@@ -392,7 +392,7 @@ async function abrirFicha(prefixo, filtroHist = "todas", detalhe = null) {
       <div class="pilha">${grupos.length ? grupos.map(([t, l]) => `<section class="cartao"><h3>${esc(t)}</h3><div class="cont">${l.map((g) => itemGarantia(g, v)).join("")}</div></section>`).join("")
         : `<section class="cartao"><h3>Garantias</h3><div class="cont"><p class="nota" style="font-size:14px;padding:12px 0">Nenhuma regra na aba RegrasGarantia para ${esc(v.fabricante)}${v.encarrocadora ? ` ou ${esc(v.encarrocadora)}` : ""}.</p></div></section>`}</div>
       <section class="cartao"><h3>Manutenção preventiva</h3><div class="cont">${v.prev.map((p) => itemPreventiva(p, v)).join("") || `<p class="nota" style="font-size:14px;padding:12px 0">Nenhum plano de preventiva atribuído. Use Editar dados para escolher os planos deste veículo.</p>`}
-        ${detalhe.manutencoes.length ? `<p class="nota" style="margin:10px 0 4px;font-size:13px"><b>Últimas revisões registradas:</b> ${detalhe.manutencoes.slice(0, 5).map((m) => `${esc(m.plano)} com ${fmtKm(m.km_execucao)}${m.data_execucao ? ` em ${fmtData(paraData(m.data_execucao))}` : ""}${m.ordem_servico ? ` (OS ${esc(m.ordem_servico)})` : ""}`).join("; ")}.</p>` : ""}
+        ${detalhe.manutencoes.length ? `<p class="nota" style="margin:10px 0 4px;font-size:13px"><b>Últimas revisões registradas:</b> ${detalhe.manutencoes.slice(0, 5).map((m) => `${esc(m.plano)} com ${fmtKm(m.km_execucao)}${m.data_execucao ? ` em ${fmtData(paraData(m.data_execucao))}` : ""}${m.ordem_servico ? ` (OS ${esc(m.ordem_servico)})` : ""}${m.nota_fiscal ? ` — NF ${m.nota_fiscal_arquivo ? `<a href="${esc(m.nota_fiscal_arquivo)}" target="_blank" rel="noopener">${esc(m.nota_fiscal)}</a>` : esc(m.nota_fiscal)}` : ""}`).join("; ")}.</p>` : ""}
       </div></section>
     </div>
     <section class="cartao"><h3>Histórico de KM <small>Linhas em âmbar são lançamentos manuais</small></h3>
@@ -423,7 +423,8 @@ function ligarFormulario(form, acao, montar, aposSalvar) {
     const erro = form.querySelector(".erro-form"), botao = form.querySelector("button:not([type=button])");
     erro.hidden = true; botao.disabled = true;
     try {
-      const resultado = await comCarregamento(() => chamar(acao, montar(form)));
+      const dados = await montar(form); // pode ser assíncrono (leitura de arquivo)
+      const resultado = await comCarregamento(() => chamar(acao, dados));
       form.closest("dialog").close();
       await aposSalvar(resultado);
     } catch (err) {
@@ -467,7 +468,21 @@ function abrirVeiculo(v = null) {
     || `<span class="peq">Nenhum plano cadastrado na aba Planos.</span>`;
   $("dlg-veiculo").showModal();
 }
-$("btn-novo").onclick = () => abrirVeiculo();
+// os veículos chegam pela integração (TransNet/API): aqui só se edita
+$("btn-novo").onclick = () => {
+  const f = $("form-escolher");
+  f.reset(); f.querySelector(".erro-form").hidden = true;
+  $("lista-veiculos").innerHTML = est.dados.veiculos.map((v) => `<option value="${esc(v.prefixo)}">${esc(v.placa || "sem placa")} · ${esc(v.modelo)} · ${esc(v.filial_nome)}</option>`).join("");
+  $("dlg-escolher").showModal();
+};
+$("form-escolher").onsubmit = (e) => {
+  e.preventDefault();
+  const f = e.target, termo = f.busca_veiculo.value.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const v = est.dados.veiculos.find((x) => x.prefixo.replace(/[^A-Z0-9]/g, "") === termo || x.placa === termo);
+  if (!v) { const er = f.querySelector(".erro-form"); er.textContent = "Veículo não encontrado. Digite o prefixo ou a placa."; er.hidden = false; return; }
+  $("dlg-escolher").close();
+  abrirVeiculo(v);
+};
 ligarFormulario($("form-veiculo"), "salvarVeiculo", (f) => ({
   prefixo_original: f.prefixo_original.value, prefixo: f.prefixo.value, placa: f.placa.value, chassi: f.chassi.value,
   fabricante: f.fabricante.value, modelo: f.modelo.value, encarrocadora: f.encarrocadora.value, modelo_carroceria: f.modelo_carroceria.value,
@@ -502,10 +517,26 @@ function abrirManut(v) {
   f.km_execucao.value = v.km_atual;
   f.data_execucao.value = isoLocal(new Date()).slice(0, 10);
   f.data_execucao.max = f.data_execucao.value;
+  // nota fiscal obrigatória nas revisões de garantia
+  const exigirNf = () => {
+    const obrig = /^revis[aã]o de garantia/i.test(f.plano.value);
+    f.nota_fiscal.required = obrig;
+    $("rot-nf").textContent = obrig ? "Nota fiscal do serviço em garantia (obrigatória)" : "Nota fiscal do serviço";
+  };
+  f.plano.onchange = exigirNf; exigirNf();
   $("dlg-manut").showModal();
 }
-ligarFormulario($("form-manut"), "registrarManutencao", (f) => ({ prefixo: f.prefixo.value, plano: f.plano.value,
-  km_execucao: Number(f.km_execucao.value), data_execucao: f.data_execucao.value, ordem_servico: f.ordem_servico.value, observacao: f.observacao.value }),
+const lerArquivo = (arq) => new Promise((ok, falha) => {
+  if (!arq) return ok(null);
+  if (arq.size > 10 * 1024 * 1024) return falha(new Error("O arquivo da nota fiscal passa de 10 MB."));
+  const r = new FileReader();
+  r.onload = () => ok({ nome: arq.name, tipo: arq.type || "application/pdf", base64: String(r.result).split(",")[1] });
+  r.onerror = () => falha(new Error("Não foi possível ler o arquivo da nota fiscal."));
+  r.readAsDataURL(arq);
+});
+ligarFormulario($("form-manut"), "registrarManutencao", async (f) => ({ prefixo: f.prefixo.value, plano: f.plano.value,
+  km_execucao: Number(f.km_execucao.value), data_execucao: f.data_execucao.value, ordem_servico: f.ordem_servico.value,
+  nota_fiscal: f.nota_fiscal.value.trim(), nota_fiscal_arquivo: await lerArquivo(f.nota_fiscal_arquivo.files[0]), observacao: f.observacao.value }),
   () => reabrir(est.fichaAberta, "Manutenção registrada."));
 
 // Senha
