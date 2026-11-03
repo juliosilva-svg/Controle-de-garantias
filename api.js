@@ -29,6 +29,7 @@ export async function chamar(acao, dados = {}) {
   try { r = await resp.json(); } catch { throw new Error("Resposta inesperada do servidor. Confira a URL e a implantação do Apps Script."); }
   if (!r.ok) {
     if (r.sessao_expirada) { sessao.limpar(); window.dispatchEvent(new Event("frota:sair")); }
+    if (r.trocar_senha && acao !== "alterarSenha") window.dispatchEvent(new Event("frota:trocar-senha"));
     throw new Error(r.erro || "Erro desconhecido");
   }
   return r.dados;

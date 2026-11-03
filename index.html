@@ -59,6 +59,18 @@
       Sistema novo, sem administrador? <a href="#" id="abrir-primeiro" style="color:var(--link);font-weight:600">Primeiro acesso</a>
     </p>
   </form>
+  <form id="form-trocar" hidden>
+    <div class="faixa-logo"><img src="logo-univale.png" alt="Univale"></div>
+    <h1>Defina sua senha</h1>
+    <p class="sub2">Você entrou com uma senha provisória. Crie agora a sua senha pessoal para continuar.</p>
+    <label class="campo" id="campo-senha-provisoria"><span>Senha provisória</span><input type="password" name="senha_atual" autocomplete="current-password"></label>
+    <label class="campo" style="margin-top:14px"><span>Nova senha</span><input type="password" name="nova_senha" required minlength="6" autocomplete="new-password"></label>
+    <ul id="regras-troca" class="regras-senha"></ul>
+    <label class="campo" style="margin-top:10px"><span>Repita a nova senha</span><input type="password" name="nova_senha2" required minlength="6" autocomplete="new-password"></label>
+    <p class="erro-form" role="alert" hidden></p>
+    <button class="btn prim" style="width:100%;margin-top:20px;padding:10px">Salvar senha e entrar</button>
+    <p style="margin:14px 0 0;font-size:14px;text-align:center"><a href="#" id="sair-troca" style="color:var(--link)">Sair</a></p>
+  </form>
   <form id="form-primeiro" hidden>
     <div class="faixa-logo"><img src="logo-univale.png" alt="Univale"></div>
     <h1>Primeiro acesso</h1>
@@ -68,8 +80,8 @@
       <small>É o ID da planilha: no endereço dela, o trecho entre <b>/d/</b> e <b>/edit</b>.</small></label>
     <label class="campo" style="margin-top:14px"><span>Seu nome</span><input name="nome" required autocomplete="name"></label>
     <label class="campo" style="margin-top:14px"><span>E-mail de login</span><input type="email" name="email" required autocomplete="username"></label>
-    <label class="campo" style="margin-top:14px"><span>Senha</span><input type="password" name="senha" required minlength="8" autocomplete="new-password"><small>Mínimo de 8 caracteres</small></label>
-    <label class="campo" style="margin-top:14px"><span>Repita a senha</span><input type="password" name="senha2" required minlength="8" autocomplete="new-password"></label>
+    <label class="campo" style="margin-top:14px"><span>Senha</span><input type="password" name="senha" required minlength="6" autocomplete="new-password"><small>6+ caracteres, com maiúscula, minúscula e número ou símbolo</small></label>
+    <label class="campo" style="margin-top:14px"><span>Repita a senha</span><input type="password" name="senha2" required minlength="6" autocomplete="new-password"></label>
     <p class="erro-form" role="alert" hidden></p>
     <button class="btn prim" style="width:100%;margin-top:20px;padding:10px">Criar administrador e entrar</button>
     <p style="margin:14px 0 0;font-size:14px;text-align:center"><a href="#" id="voltar-login" style="color:var(--link)">Voltar ao login</a></p>
@@ -230,7 +242,7 @@
         <label class="campo"><span>E-mail</span><input name="email" type="email" required></label>
         <label class="campo"><span>Acesso</span><select name="perfil"><option value="FILIAL">Usuário de filial</option><option value="ADMIN">Administrador (todas as filiais)</option></select></label>
         <label class="campo"><span>Filial</span><select name="filial_codigo"></select></label>
-        <label class="campo"><span>Senha</span><input name="senha" type="password" minlength="8" autocomplete="new-password"><small id="dica-senha">Mínimo de 8 caracteres</small></label>
+        <label class="campo"><span>Senha</span><input name="senha" type="password" minlength="6" autocomplete="new-password"><small id="dica-senha"></small></label>
         <label class="check" style="align-self:end"><input type="checkbox" name="ativo" checked> Acesso ativo</label>
         <label class="check inteiro"><input type="checkbox" name="recebe_alertas" checked> Receber por e-mail os alertas de revisão de garantia (administrador: todas as garagens; filial: só a sua)</label>
       </div>
@@ -272,7 +284,8 @@
     <h2>Alterar minha senha</h2>
     <div class="grade-form">
       <label class="campo inteiro"><span>Senha atual</span><input name="senha_atual" type="password" required autocomplete="current-password"></label>
-      <label class="campo inteiro"><span>Nova senha</span><input name="nova_senha" type="password" required minlength="8" autocomplete="new-password"></label>
+      <label class="campo inteiro"><span>Nova senha</span><input name="nova_senha" type="password" required minlength="6" autocomplete="new-password"></label>
+      <ul id="regras-senha" class="regras-senha inteiro"></ul>
     </div>
     <p class="erro-form" role="alert" hidden></p>
     <div class="rodape"><button type="button" class="btn" data-fechar>Cancelar</button><button class="btn prim" value="ok">Alterar</button></div>

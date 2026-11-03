@@ -59,7 +59,7 @@ const admin = () => est.usuario?.perfil === "ADMIN";
 /* ------------------------------------------------------------------ login / sessão */
 function mostrarLogin() {
   $("tela-app").hidden = true; $("tela-login").hidden = false;
-  $("form-login").hidden = false; $("form-primeiro").hidden = true;
+  $("form-login").hidden = false; $("form-primeiro").hidden = true; $("form-trocar").hidden = true;
   fecharFicha(); document.querySelectorAll("dialog[open]").forEach((d) => d.close());
   $("form-login").email.focus();
   // sem administrador cadastrado: oferece a tela de primeiro acesso
@@ -102,12 +102,59 @@ $("form-login").onsubmit = async (e) => {
   try {
     const r = await comCarregamento(() => chamar("login", { email: f.email.value, senha: f.senha.value }));
     sessao.salvar(r);
+    const digitada = f.senha.value;
     f.senha.value = "";
-    await iniciar();
+    if (r.usuario.trocar_senha) mostrarTrocaSenha(digitada); // senha provisória criada pelo administrador
+    else await iniciar();
   } catch (err) {
     erro.textContent = err.message; erro.hidden = false;
   } finally { f.querySelector("button").disabled = false; }
 };
+/* ------------------------------------------------------------------ troca obrigatória de senha */
+const REGRAS_SENHA = [
+  ["Pelo menos 6 caracteres", (s) => s.length >= 6],
+  ["Uma letra maiúscula", (s) => /[A-ZÀ-Ý]/.test(s)],
+  ["Uma letra minúscula", (s) => /[a-zß-ÿ]/.test(s)],
+  ["Um número ou caractere especial", (s) => /[0-9]|[^A-Za-zÀ-ÿ0-9]/.test(s)],
+];
+const senhaValida = (s) => REGRAS_SENHA.every(([, t]) => t(s));
+/** Lista de requisitos que fica verde conforme a pessoa digita. */
+function ligarRegrasSenha(campo, lista) {
+  const atualizar = () => { lista.innerHTML = REGRAS_SENHA.map(([r, t]) => `<li class="${t(campo.value) ? "s-verde" : ""}">${t(campo.value) ? "✓" : "○"} ${r}</li>`).join(""); };
+  campo.addEventListener("input", atualizar); atualizar();
+  return atualizar;
+}
+let senhaProvisoria = "";
+function mostrarTrocaSenha(atual = "") {
+  senhaProvisoria = atual;
+  $("tela-app").hidden = true; $("tela-login").hidden = false;
+  $("form-login").hidden = true; $("form-primeiro").hidden = true; $("form-trocar").hidden = false;
+  const f = $("form-trocar"); f.reset(); f.querySelector(".erro-form").hidden = true;
+  $("campo-senha-provisoria").hidden = Boolean(atual);
+  f.senha_atual.required = !atual;
+  atualizarRegrasTroca();
+  (atual ? f.nova_senha : f.senha_atual).focus();
+}
+window.addEventListener("frota:trocar-senha", () => mostrarTrocaSenha(""));
+const atualizarRegrasTroca = ligarRegrasSenha($("form-trocar").nova_senha, $("regras-troca"));
+$("form-trocar").onsubmit = async (e) => {
+  e.preventDefault();
+  const f = e.target, erro = f.querySelector(".erro-form"), botao = f.querySelector("button");
+  erro.hidden = true;
+  const nova = f.nova_senha.value;
+  if (!senhaValida(nova)) { erro.textContent = "A nova senha não atende a todos os requisitos."; erro.hidden = false; return; }
+  if (nova !== f.nova_senha2.value) { erro.textContent = "As senhas não conferem."; erro.hidden = false; return; }
+  botao.disabled = true;
+  try {
+    await comCarregamento(() => chamar("alterarSenha", { senha_atual: senhaProvisoria || f.senha_atual.value, nova_senha: nova }));
+    senhaProvisoria = ""; $("form-trocar").hidden = true; f.reset();
+    await iniciar();
+    avisar("Senha definida. Bem-vindo ao Controle de Frota!");
+  } catch (err) { erro.textContent = err.message; erro.hidden = false; }
+  finally { botao.disabled = false; }
+};
+$("sair-troca").onclick = (e) => { e.preventDefault(); sessao.limpar(); $("form-trocar").hidden = true; mostrarLogin(); };
+
 $("btn-sair").onclick = () => { sessao.limpar(); est.dados = null; mostrarLogin(); };
 
 async function iniciar() {
@@ -178,12 +225,13 @@ const VISTAS = {
     base: (v) => v.emGarantia === true, ordem: "revisao", vazio: "Nenhum veículo em garantia com esses filtros.",
     colunas: ["prefixo", "placa", "chassi", "carroceria", "revisao", "km", "vence"],
     filtros: { todos: ["Todos", () => true], atencao: ["Precisam de atenção", (v) => vence60(v) || atrasada(v)],
-      vencendo: ["Garantia vence em 60 dias", vence60], revisao: ["Revisão atrasada", atrasada], revisar: ["Cadastro a revisar", (v) => v.pend.length > 0] },
+      vencendo: ["Garantia vence em 60 dias", vence60], revisao: ["Revisão atrasada", atrasada],
+      proxima: ["Revisão próxima", (v) => v.prevCritica?.status === "PROXIMA"], revisar: ["Cadastro a revisar", (v) => v.pend.length > 0] },
     metricas: (l, total) => [
-      [l.length, "Em garantia", `${pct(l.length, total)}% dos ${nf.format(total)} veículos`, "verde"],
-      [l.filter(vence60).length, "Garantia vence em 60 dias", `${nf.format(l.filter((v) => v.sChassi === "VENCE_30").length)} em até 30 dias`, l.some(vence60) ? "ambar" : ""],
-      [l.filter(atrasada).length, "Revisões atrasadas", `${nf.format(l.filter((v) => v.prevCritica?.status === "VENCIDA").length)} além da tolerância`, l.some(atrasada) ? "vermelho" : ""],
-      [l.filter((v) => v.prevCritica?.status === "PROXIMA").length, "Revisões próximas", `${nf.format(l.filter((v) => v.prevCritica?.status === "SEM_REGISTRO").length)} sem registro de revisão`, ""],
+      [l.length, "Em garantia", `${pct(l.length, total)}% dos ${nf.format(total)} veículos`, "verde", "todos"],
+      [l.filter(vence60).length, "Garantia vence em 60 dias", `${nf.format(l.filter((v) => v.sChassi === "VENCE_30").length)} em até 30 dias`, l.some(vence60) ? "ambar" : "", "vencendo"],
+      [l.filter(atrasada).length, "Revisões atrasadas", `${nf.format(l.filter((v) => v.prevCritica?.status === "VENCIDA").length)} além da tolerância`, l.some(atrasada) ? "vermelho" : "", "revisao"],
+      [l.filter((v) => v.prevCritica?.status === "PROXIMA").length, "Revisões próximas", `${nf.format(l.filter((v) => v.prevCritica?.status === "SEM_REGISTRO").length)} sem registro de revisão`, "", "proxima"],
     ],
   },
   fora: {
@@ -192,10 +240,10 @@ const VISTAS = {
     filtros: { todos: ["Todos", () => true], recentes: ["Encerrada nos últimos 90 dias", (v) => v.fimGarantia && hoje() - v.fimGarantia <= 90 * DIA],
       preventiva: ["Preventiva pendente", atrasada], revisar: ["Cadastro a revisar", (v) => v.pend.length > 0] },
     metricas: (l, total) => [
-      [l.length, "Fora da garantia", `${pct(l.length, total)}% dos ${nf.format(total)} veículos`, "vermelho"],
-      [l.filter((v) => v.fimGarantia && hoje() - v.fimGarantia <= 90 * DIA).length, "Encerradas nos últimos 90 dias", "Garantia de fábrica terminou recentemente", ""],
-      [l.filter(atrasada).length, "Preventivas pendentes", "Planos de preventiva fora da revisão de garantia", l.some(atrasada) ? "vermelho" : ""],
-      [l.filter((v) => v.pend.length).length, "Cadastro a revisar", "Divergências para conferir", l.some((v) => v.pend.length) ? "ambar" : ""],
+      [l.length, "Fora da garantia", `${pct(l.length, total)}% dos ${nf.format(total)} veículos`, "vermelho", "todos"],
+      [l.filter((v) => v.fimGarantia && hoje() - v.fimGarantia <= 90 * DIA).length, "Encerradas nos últimos 90 dias", "Garantia de fábrica terminou recentemente", "", "recentes"],
+      [l.filter(atrasada).length, "Preventivas pendentes", "Planos de preventiva fora da revisão de garantia", l.some(atrasada) ? "vermelho" : "", "preventiva"],
+      [l.filter((v) => v.pend.length).length, "Cadastro a revisar", "Divergências para conferir", l.some((v) => v.pend.length) ? "ambar" : "", "revisar"],
     ],
   },
   sem: {
@@ -203,9 +251,9 @@ const VISTAS = {
     colunas: ["prefixo", "placa", "chassi", "carroceria", "ano", "km", "revisao"],
     filtros: { todos: ["Todos", () => true], revisar: ["Cadastro a revisar", (v) => v.pend.length > 0] },
     metricas: (l) => [
-      [l.length, "Sem critério de garantia", "A situação de garantia não é calculada", l.length ? "ambar" : ""],
+      [l.length, "Sem critério de garantia", "A situação de garantia não é calculada", l.length ? "ambar" : "", "todos"],
       [new Set(l.map((v) => chaveModelo(v.modelo))).size, "Modelos de chassi sem critério", admin() ? "Cadastre em Critérios de garantia" : "O administrador cadastra os critérios", ""],
-      [l.filter((v) => v.pend.length).length, "Cadastro a revisar", "Divergências para conferir", ""],
+      [l.filter((v) => v.pend.length).length, "Cadastro a revisar", "Divergências para conferir", "", "revisar"],
     ],
   },
 };
@@ -225,8 +273,15 @@ function render() {
   const cfg = VISTAS[est.vista];
   if (!cfg.filtros[est.filtro]) est.filtro = "todos";
   const base = daFilial.filter(cfg.base);
-  $("metricas").innerHTML = cfg.metricas(base, daFilial.length).map(([v, t, d, c]) =>
-    `<div class="metrica"><div class="v num ${c}" style="${c === "verde" ? "color:var(--green)" : ""}">${nf.format(v)}</div><div class="t">${t}</div><div class="d">${d}</div></div>`).join("");
+  $("metricas").innerHTML = cfg.metricas(base, daFilial.length).map(([v, t, d, c, f]) => {
+    const conteudo = `<div class="v num ${c}" style="${c === "verde" ? "color:var(--green)" : ""}">${nf.format(v)}</div><div class="t">${t}</div><div class="d">${d}</div>`;
+    return f ? `<button type="button" class="metrica clicavel" data-filtro="${f}" aria-pressed="${est.filtro === f}" title="Mostrar estes veículos na lista">${conteudo}</button>`
+      : `<div class="metrica">${conteudo}</div>`;
+  }).join("");
+  $("metricas").querySelectorAll("[data-filtro]").forEach((b) => (b.onclick = () => {
+    est.filtro = b.dataset.filtro; est.pagina = 0; render();
+    document.querySelector(".quadro").scrollIntoView({ behavior: "smooth", block: "start" });
+  }));
   const estimadas = base.filter((v) => !v.data_confirmada).length;
   $("aviso").hidden = !estimadas;
   $("aviso").textContent = `${nf.format(estimadas)} veículos desta lista estão com a data de fabricação estimada. Corrija em "Editar dados" para os prazos ficarem exatos.`;
@@ -540,7 +595,8 @@ ligarFormulario($("form-manut"), "registrarManutencao", async (f) => ({ prefixo:
   () => reabrir(est.fichaAberta, "Manutenção registrada."));
 
 // Senha
-$("btn-senha").onclick = () => { const f = $("form-senha"); f.reset(); f.querySelector(".erro-form").hidden = true; $("dlg-senha").showModal(); };
+const atualizarRegrasSenha = ligarRegrasSenha($("form-senha").nova_senha, $("regras-senha"));
+$("btn-senha").onclick = () => { const f = $("form-senha"); f.reset(); f.querySelector(".erro-form").hidden = true; atualizarRegrasSenha(); $("dlg-senha").showModal(); };
 ligarFormulario($("form-senha"), "alterarSenha", (f) => ({ senha_atual: f.senha_atual.value, nova_senha: f.nova_senha.value }),
   async () => avisar("Senha alterada."));
 
@@ -549,7 +605,7 @@ const formU = $("form-usuario");
 function limparUsuario() {
   formU.reset(); formU.querySelector(".erro-form").hidden = true;
   formU.email.readOnly = false; $("titulo-usuario").textContent = "Novo usuário";
-  $("dica-senha").textContent = "Mínimo de 8 caracteres"; formU.senha.required = true;
+  $("dica-senha").textContent = "Senha provisória: 6+ caracteres, com maiúscula, minúscula e número ou símbolo. O usuário troca no primeiro acesso."; formU.senha.required = true;
   preencherFiliais(formU.filial_codigo); formU.filial_codigo.disabled = false;
   formU.perfil.onchange();
 }
@@ -763,5 +819,5 @@ formC.onsubmit = async (e) => {
 /* ------------------------------------------------------------------ início */
 window.__frotaIniciado = true;
 $("tela-inicial").hidden = true;
-if (sessao.obter()?.token) iniciar().catch((e) => { avisar(e.message, true); mostrarLogin(); });
+if (sessao.obter()?.token) iniciar().catch((e) => { if ($("form-trocar").hidden) { avisar(e.message, true); mostrarLogin(); } });
 else mostrarLogin();
